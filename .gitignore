@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+.env
+*.db
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+*.log
+npm-debug.log*
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker / local
+postgres_data/
+redis_data/
+deploy/certs/*.pem
+deploy/certs/*.pfx
+deploy/certs/*.crt
+deploy/certs/*.key
+
+# Cursor / local agent
+.cursor/
