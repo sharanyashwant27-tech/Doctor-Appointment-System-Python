@@ -19,9 +19,27 @@ class DoctorProfileRead(ORMModel):
     city: Optional[str] = None
     rating_avg: float = 0
     is_verified: bool = False
+    department_id: Optional[int] = None
+    department_name: Optional[str] = None
     full_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+
+
+class DoctorAdminCreate(BaseModel):
+    """Admin creates a doctor account linked to a department (specialty)."""
+
+    email: str
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str
+    phone: Optional[str] = None
+    department_id: int
+    qualification: Optional[str] = None
+    experience_years: int = Field(default=0, ge=0)
+    consultation_fee: float = Field(default=500.0, ge=0)
+    city: Optional[str] = None
+    bio: Optional[str] = None
+    is_verified: bool = True
 
 
 class DoctorProfileUpdate(BaseModel):
@@ -32,6 +50,7 @@ class DoctorProfileUpdate(BaseModel):
     consultation_fee: Optional[float] = None
     clinic_address: Optional[str] = None
     city: Optional[str] = None
+    department_id: Optional[int] = None
 
 
 class AvailabilityCreate(BaseModel):

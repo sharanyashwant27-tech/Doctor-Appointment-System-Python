@@ -141,6 +141,7 @@ python -c "from database.seed import run_seed; run_seed(reset=True)"
 - **UPI payments** (QR + `upi://` intent, UTR confirm) + invoice PDF; Stripe/Razorpay stubs still available via `PAYMENT_GATEWAY`
 - In-app notifications; Celery reminders via SMTP / Twilio SMS / optional Firebase push
 - Admin analytics charts; Pandas CSV/XLSX + ReportLab PDF exports; audit logs
+- **Admin add doctors**: Admin → Doctors form creates doctor accounts with a **department dropdown** (`POST /api/v1/admin/doctors`); specialty + `department_id` sync from the selected department; verify/unverify still available on the same page
 - Advanced: symptom AI, voice booking, face login, Jitsi video, chat, OCR, medicine reminders, ratings, insurance, Google Calendar via `.ics` import, e-sign, certificates, multi-hospital
 - **Pharmacy management**: inventory, suppliers, stock movements, dispense against prescriptions, walk-in POS, patient fulfillment requests ([docs/PHARMACY.md](docs/PHARMACY.md)) — Admin `/admin/pharmacy`, Doctor `/doctor/pharmacy`, Patient `/patient/pharmacy`
 - Brand logo + role dashboards with **clickable cards** to each feature page; vibrant green MUI theme (light/dark)

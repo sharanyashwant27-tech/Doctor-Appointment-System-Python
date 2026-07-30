@@ -12,6 +12,8 @@ export type Doctor = {
   city?: string;
   rating_avg: number;
   is_verified: boolean;
+  department_id?: number | null;
+  department_name?: string | null;
   full_name?: string;
   email?: string;
   phone?: string;
@@ -228,6 +230,19 @@ export const adminApi = {
   analytics: () => apiClient.get<Analytics>('/v1/admin/analytics').then((r) => r.data),
   users: () => apiClient.get('/v1/admin/users').then((r) => r.data),
   audit: () => apiClient.get('/v1/admin/audit-logs').then((r) => r.data),
+  createDoctor: (body: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone?: string;
+    department_id: number;
+    qualification?: string;
+    experience_years?: number;
+    consultation_fee?: number;
+    city?: string;
+    bio?: string;
+    is_verified?: boolean;
+  }) => apiClient.post<Doctor>('/v1/admin/doctors', body).then((r) => r.data),
   verifyDoctor: (id: number, is_verified = true) =>
     apiClient.patch(`/v1/admin/doctors/${id}/verify`, { is_verified }).then((r) => r.data),
   exportUrl: (resource: string, format: string) => `/api/v1/admin/export/${resource}?format=${format}`,

@@ -6,20 +6,24 @@ from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from utils.exceptions import ForbiddenError, NotFoundError, ValidationAppError
+from utils.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
+from auth.security import hash_password
 from models.availability import Availability
 from models.doctor import DoctorProfile
-from models.user import User
-from schemas.doctor import AvailabilityCreate, AvailabilityUpdate, DoctorProfileUpdate
+from models.org import Department
+from models.user import User, UserRole
+from schemas.doctor import AvailabilityCreate, AvailabilityUpdate, DoctorAdminCreate, DoctorProfileUpdate
 from services.audit_service import write_audit
 
 
-def _enrich(profile: DoctorProfile) -> DoctorProfile:
-    return profile
-
-
-def doctor_to_dict(profile: DoctorProfile) -> dict:
+def doctor_to_dict(profile: DoctorProfile, db: Optional[Session] = None) -> dict:
     u = profile.user
+    department_name = None
+    if profile.department_id and db is not None:
+        dept = db.get(Department, profile.department_id)
+        department_name = dept.name if dept else None
+    elif profile.department_id is None and profile.specialty:
+        department_name = profile.specialty
     return {
         "id": profile.id,
         "user_id": profile.user_id,
@@ -32,6 +36,8 @@ def doctor_to_dict(profile: DoctorProfile) -> dict:
         "city": profile.city,
         "rating_avg": profile.rating_avg,
         "is_verified": profile.is_verified,
+        "department_id": profile.department_id,
+        "department_name": department_name,
         "full_name": u.full_name if u else None,
         "email": u.email if u else None,
         "phone": u.phone if u else None,
@@ -84,7 +90,13 @@ def get_doctor(db: Session, doctor_id: int) -> DoctorProfile:
 
 def update_my_profile(db: Session, user: User, payload: DoctorProfileUpdate) -> DoctorProfile:
     profile = get_profile_for_user(db, user)
-    for k, v in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    if "department_id" in data and data["department_id"] is not None:
+        dept = db.get(Department, data["department_id"])
+        if dept is None:
+            raise NotFoundError("Department not found")
+        data["specialty"] = dept.name
+    for k, v in data.items():
         setattr(profile, k, v)
     write_audit(
         db,
@@ -151,6 +163,57 @@ def delete_availability(db: Session, user: User, availability_id: int) -> None:
         raise NotFoundError("Availability not found")
     db.delete(row)
     db.commit()
+
+
+def create_doctor_by_admin(db: Session, payload: DoctorAdminCreate, actor_id: int) -> DoctorProfile:
+    """Create a doctor user + profile linked to a department from the admin panel."""
+    dept = db.get(Department, payload.department_id)
+    if dept is None or not getattr(dept, "is_active", True):
+        raise NotFoundError("Department not found")
+
+    email = payload.email.lower().strip()
+    if db.scalar(select(User).where(User.email == email)):
+        raise ConflictError("Email already registered")
+
+    user = User(
+        email=email,
+        hashed_password=hash_password(payload.password),
+        full_name=payload.full_name.strip(),
+        phone=payload.phone,
+        role=UserRole.doctor,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
+
+    profile = DoctorProfile(
+        user_id=user.id,
+        specialty=dept.name,
+        department_id=dept.id,
+        qualification=payload.qualification,
+        experience_years=payload.experience_years,
+        consultation_fee=payload.consultation_fee,
+        city=payload.city,
+        bio=payload.bio,
+        is_verified=payload.is_verified,
+    )
+    db.add(profile)
+    db.flush()
+    write_audit(
+        db,
+        actor_user_id=actor_id,
+        action="doctor.create",
+        entity_type="doctor_profile",
+        entity_id=str(profile.id),
+        details={
+            "email": email,
+            "department_id": dept.id,
+            "department": dept.name,
+            "full_name": user.full_name,
+        },
+    )
+    db.commit()
+    return get_doctor(db, profile.id)
 
 
 def verify_doctor(db: Session, doctor_id: int, is_verified: bool, actor_id: int) -> DoctorProfile:

@@ -29,12 +29,12 @@ def list_doctors(
     profiles = doctor_service.list_doctors(
         db, specialty=specialty, city=city, q=q, verified_only=verified_only, skip=skip, limit=limit
     )
-    return [doctor_service.doctor_to_dict(p) for p in profiles]
+    return [doctor_service.doctor_to_dict(p, db) for p in profiles]
 
 
 @router.put("/me/profile", response_model=DoctorProfileRead)
 def update_my_profile(payload: DoctorProfileUpdate, user: DoctorUser, db: DbSession):
-    return doctor_service.doctor_to_dict(doctor_service.update_my_profile(db, user, payload))
+    return doctor_service.doctor_to_dict(doctor_service.update_my_profile(db, user, payload), db)
 
 
 @router.post("/me/availability", response_model=AvailabilityRead, status_code=201)
@@ -55,7 +55,7 @@ def delete_availability(availability_id: int, user: DoctorUser, db: DbSession):
 
 @router.get("/{doctor_id}", response_model=DoctorProfileRead)
 def get_doctor(doctor_id: int, db: DbSession):
-    return doctor_service.doctor_to_dict(doctor_service.get_doctor(db, doctor_id))
+    return doctor_service.doctor_to_dict(doctor_service.get_doctor(db, doctor_id), db)
 
 
 @router.get("/{doctor_id}/availability", response_model=List[AvailabilityRead])

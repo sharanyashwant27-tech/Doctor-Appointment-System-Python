@@ -7,7 +7,7 @@ from io import BytesIO
 
 from api.deps import AdminUser, DbSession
 from schemas.admin import AnalyticsResponse, AuditLogRead, DoctorVerifyRequest
-from schemas.doctor import DoctorProfileRead
+from schemas.doctor import DoctorAdminCreate, DoctorProfileRead
 from schemas.user import UserRead
 from services import admin_service, audit_service, doctor_service, user_service
 from reports.export_service import export_resource
@@ -51,7 +51,14 @@ def admin_users(_: AdminUser, db: DbSession):
     return user_service.list_users(db)
 
 
+@router.post("/doctors", response_model=DoctorProfileRead, status_code=201)
+def create_doctor(payload: DoctorAdminCreate, admin: AdminUser, db: DbSession):
+    """Create a doctor and assign them to a department from the dropdown list."""
+    profile = doctor_service.create_doctor_by_admin(db, payload, actor_id=admin.id)
+    return doctor_service.doctor_to_dict(profile, db)
+
+
 @router.patch("/doctors/{doctor_id}/verify", response_model=DoctorProfileRead)
 def verify_doctor(doctor_id: int, payload: DoctorVerifyRequest, admin: AdminUser, db: DbSession):
     profile = doctor_service.verify_doctor(db, doctor_id, payload.is_verified, actor_id=admin.id)
-    return doctor_service.doctor_to_dict(profile)
+    return doctor_service.doctor_to_dict(profile, db)
