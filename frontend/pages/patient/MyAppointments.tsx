@@ -4,19 +4,38 @@ import {
   Card,
   CardActions,
   CardContent,
+  Chip,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
-import { Appointment, appointmentsApi, paymentsApi } from '@services/endpoints';
+import { Appointment, Payment, appointmentsApi, paymentsApi } from '@services/endpoints';
+import UpiPayDialog from '@components/UpiPayDialog';
+
+const PAYABLE_STATUSES = new Set(['approved', 'confirmed', 'completed', 'rescheduled']);
+const UNPAID = new Set(['unpaid', 'pending', 'failed', '', undefined, null]);
+
+function canPay(a: Appointment) {
+  const pay = (a.payment_status || 'unpaid').toLowerCase();
+  return PAYABLE_STATUSES.has(a.status) && UNPAID.has(pay as string);
+}
+
+function errMsg(e: unknown, fallback: string) {
+  const ax = e as { response?: { data?: { message?: string; detail?: string } } };
+  return ax.response?.data?.message || ax.response?.data?.detail || fallback;
+}
 
 export default function MyAppointments() {
   const [items, setItems] = useState<Appointment[]>([]);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
   const [rescheduleId, setRescheduleId] = useState<number | null>(null);
   const [when, setWhen] = useState(dayjs().add(2, 'day').hour(11).minute(0).format('YYYY-MM-DDTHH:mm'));
+  const [payOpen, setPayOpen] = useState(false);
+  const [activePayment, setActivePayment] = useState<Payment | null>(null);
+  const [payingId, setPayingId] = useState<number | null>(null);
 
   async function load() {
     try {
@@ -30,11 +49,39 @@ export default function MyAppointments() {
     void load();
   }, []);
 
+  async function startUpiPay(appointmentId: number) {
+    setPayingId(appointmentId);
+    setError('');
+    try {
+      const p = await paymentsApi.checkout(appointmentId);
+      if (p.status === 'success') {
+        setMsg(`Appointment #${appointmentId} is already paid`);
+        await load();
+        return;
+      }
+      setActivePayment(p);
+      setPayOpen(true);
+    } catch (e) {
+      setError(errMsg(e, 'Could not start UPI payment'));
+    } finally {
+      setPayingId(null);
+    }
+  }
+
   return (
     <Stack spacing={2}>
       <Typography variant="h4">My appointments</Typography>
-      <Typography color="text.secondary">List + calendar-style schedule</Typography>
-      {error && <Alert severity="error">{error}</Alert>}
+      <Typography color="text.secondary">List + calendar-style schedule · Pay consultation fees via UPI</Typography>
+      {msg && (
+        <Alert severity="success" onClose={() => setMsg('')}>
+          {msg}
+        </Alert>
+      )}
+      {error && (
+        <Alert severity="error" onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
       <Stack direction="row" flexWrap="wrap" gap={1}>
         {items.map((a) => (
           <Card key={`cal-${a.id}`} sx={{ minWidth: 140, bgcolor: 'action.hover' }}>
@@ -51,9 +98,17 @@ export default function MyAppointments() {
       {items.map((a) => (
         <Card key={a.id}>
           <CardContent>
-            <Typography fontWeight={600}>
-              #{a.id} · {a.doctor_name || `Doctor #${a.doctor_id}`} · {a.status}
-            </Typography>
+            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+              <Typography fontWeight={600}>
+                #{a.id} · {a.doctor_name || `Doctor #${a.doctor_id}`} · {a.status}
+              </Typography>
+              <Chip
+                size="small"
+                label={`Payment: ${a.payment_status || 'unpaid'}`}
+                color={(a.payment_status || 'unpaid') === 'paid' ? 'success' : 'warning'}
+                variant="outlined"
+              />
+            </Stack>
             <Typography variant="body2">{new Date(a.scheduled_at).toLocaleString()}</Typography>
             <Typography variant="body2" color="text.secondary">
               {a.reason}
@@ -65,8 +120,12 @@ export default function MyAppointments() {
                 <Button
                   size="small"
                   onClick={async () => {
-                    await appointmentsApi.cancel(a.id, 'Patient cancelled');
-                    await load();
+                    try {
+                      await appointmentsApi.cancel(a.id, 'Patient cancelled');
+                      await load();
+                    } catch (e) {
+                      setError(errMsg(e, 'Cancel failed'));
+                    }
                   }}
                 >
                   Cancel
@@ -76,24 +135,18 @@ export default function MyAppointments() {
                 </Button>
               </>
             )}
-            {['approved', 'completed', 'rescheduled'].includes(a.status) && (
+            {canPay(a) && (
               <Button
                 size="small"
-                variant="outlined"
-                onClick={async () => {
-                  try {
-                    const p = await paymentsApi.checkout(a.id);
-                    if (p.status === 'pending') {
-                      await paymentsApi.confirm(p.id);
-                    }
-                    alert('Payment confirmed');
-                  } catch (err: unknown) {
-                    alert((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Payment failed');
-                  }
-                }}
+                variant="contained"
+                disabled={payingId === a.id}
+                onClick={() => startUpiPay(a.id)}
               >
-                Pay
+                {payingId === a.id ? 'Opening UPI…' : 'Pay with UPI'}
               </Button>
+            )}
+            {(a.payment_status || '').toLowerCase() === 'paid' && (
+              <Chip size="small" color="success" label="Paid" />
             )}
           </CardActions>
           {rescheduleId === a.id && (
@@ -109,9 +162,13 @@ export default function MyAppointments() {
                 variant="contained"
                 size="small"
                 onClick={async () => {
-                  await appointmentsApi.reschedule(a.id, new Date(when).toISOString());
-                  setRescheduleId(null);
-                  await load();
+                  try {
+                    await appointmentsApi.reschedule(a.id, new Date(when).toISOString());
+                    setRescheduleId(null);
+                    await load();
+                  } catch (e) {
+                    setError(errMsg(e, 'Reschedule failed'));
+                  }
                 }}
               >
                 Save
@@ -120,6 +177,19 @@ export default function MyAppointments() {
           )}
         </Card>
       ))}
+
+      <UpiPayDialog
+        open={payOpen}
+        payment={activePayment}
+        onClose={() => {
+          setPayOpen(false);
+          setActivePayment(null);
+        }}
+        onPaid={async (p) => {
+          setMsg(`UPI payment successful · ${p.invoice_number || `Payment #${p.id}`}`);
+          await load();
+        }}
+      />
     </Stack>
   );
 }

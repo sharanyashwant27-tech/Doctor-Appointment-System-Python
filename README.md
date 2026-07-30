@@ -136,13 +136,13 @@ python -c "from database.seed import run_seed; run_seed(reset=True)"
 - JWT access + refresh tokens (hashed refresh `jti` in DB), bcrypt passwords, RBAC
 - CSRF origin checks + optional double-submit token; auth rate limiting middleware
 - HTTPS-ready Nginx profile + security headers
-- Doctor search by specialty category, availability, book / approve / reject / cancel / reschedule / complete
+- Doctor search by specialty category (nav dropdown + accordion), availability, book / approve / reject / cancel / reschedule / complete
 - Medical records & prescriptions (PDF download)
-- Mock payment checkout/confirm (Stripe/Razorpay stubs) + invoice PDF
+- **UPI payments** (QR + `upi://` intent, UTR confirm) + invoice PDF; Stripe/Razorpay stubs still available via `PAYMENT_GATEWAY`
 - In-app notifications; Celery reminders via SMTP / Twilio SMS / optional Firebase push
 - Admin analytics charts; Pandas CSV/XLSX + ReportLab PDF exports; audit logs
-- Advanced: symptom AI, voice booking, face login, Jitsi video, chat, OCR, medicine reminders, ratings, insurance, calendar sync, e-sign, certificates, multi-hospital
-- Vibrant green MUI theme (light/dark)
+- Advanced: symptom AI, voice booking, face login, Jitsi video, chat, OCR, medicine reminders, ratings, insurance, Google Calendar via `.ics` import, e-sign, certificates, multi-hospital
+- Brand logo + role dashboards; vibrant green MUI theme (light/dark)
 
 ## Documentation
 
@@ -178,7 +178,7 @@ CI: `.github/workflows/ci.yml` runs pytest + frontend build.
 
 ## Environment variables
 
-See `.env.example` for `SECRET_KEY`, `DATABASE_URL`, Redis/Celery, SMTP, Twilio, Firebase, CORS, CSRF, rate limits, and payment gateway settings.
+See `.env.example` for `SECRET_KEY`, `DATABASE_URL`, Redis/Celery, SMTP, Twilio, Firebase, CORS, CSRF, rate limits, and payment settings (`PAYMENT_GATEWAY=upi`, `UPI_VPA`, `UPI_PAYEE_NAME`).
 
 ## Architecture
 

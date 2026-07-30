@@ -1,5 +1,6 @@
 import {
   Alert,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -24,6 +25,7 @@ import {
   recordsApi,
 } from '@services/endpoints';
 import { useAuthContext } from '@context/AuthContext';
+import UpiPayDialog from '@components/UpiPayDialog';
 
 function StatCard({ label, value, to }: { label: string; value: string | number; to: string }) {
   return (
@@ -45,16 +47,25 @@ export default function PatientDashboard() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [error, setError] = useState('');
+  const [msg, setMsg] = useState('');
+  const [payOpen, setPayOpen] = useState(false);
+  const [activePayment, setActivePayment] = useState<Payment | null>(null);
+
+  async function reload() {
+    const [a, r, p, n] = await Promise.all([
+      appointmentsApi.list(),
+      recordsApi.list(),
+      paymentsApi.list(),
+      notificationsApi.list(),
+    ]);
+    setAppointments(a);
+    setRecords(r);
+    setPayments(p);
+    setNotifications(n);
+  }
 
   useEffect(() => {
-    Promise.all([appointmentsApi.list(), recordsApi.list(), paymentsApi.list(), notificationsApi.list()])
-      .then(([a, r, p, n]) => {
-        setAppointments(a);
-        setRecords(r);
-        setPayments(p);
-        setNotifications(n);
-      })
-      .catch(() => setError('Could not load dashboard'));
+    reload().catch(() => setError('Could not load dashboard'));
   }, []);
 
   const upcoming = useMemo(
@@ -89,6 +100,11 @@ export default function PatientDashboard() {
     <Stack spacing={3}>
       <Typography variant="h4">Patient dashboard</Typography>
       <Typography color="text.secondary">Welcome, {user?.full_name || 'Patient'}</Typography>
+      {msg && (
+        <Alert severity="success" onClose={() => setMsg('')}>
+          {msg}
+        </Alert>
+      )}
       {error && <Alert severity="error">{error}</Alert>}
 
       <Grid container spacing={2}>
@@ -123,12 +139,45 @@ export default function PatientDashboard() {
                     {a.doctor_name || `Doctor #${a.doctor_id}`} · {a.specialty || ''}
                   </Typography>
                   <Typography>{dayjs(a.scheduled_at).format('dddd, D MMM YYYY · HH:mm')}</Typography>
-                  <Chip size="small" label={a.status} sx={{ width: 'fit-content' }} />
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" label={a.status} sx={{ width: 'fit-content' }} />
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color={(a.payment_status || 'unpaid') === 'paid' ? 'success' : 'warning'}
+                      label={`Payment: ${a.payment_status || 'unpaid'}`}
+                    />
+                  </Stack>
                   {a.meeting_url && (
                     <Typography variant="body2" component="a" href={a.meeting_url} target="_blank" rel="noreferrer">
                       Join online consult
                     </Typography>
                   )}
+                  {['approved', 'confirmed', 'rescheduled'].includes(a.status) &&
+                    !['paid'].includes((a.payment_status || 'unpaid').toLowerCase()) && (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        sx={{ alignSelf: 'flex-start' }}
+                        onClick={async () => {
+                          try {
+                            const p = await paymentsApi.checkout(a.id);
+                            if (p.status === 'success') {
+                              setMsg('Already paid');
+                              await reload();
+                              return;
+                            }
+                            setActivePayment(p);
+                            setPayOpen(true);
+                          } catch (e) {
+                            const ax = e as { response?: { data?: { message?: string } } };
+                            setError(ax.response?.data?.message || 'Could not start UPI payment');
+                          }
+                        }}
+                      >
+                        Pay with UPI
+                      </Button>
+                    )}
                 </Stack>
               ))}
               {upcoming.length > 1 && (
@@ -187,11 +236,24 @@ export default function PatientDashboard() {
               </Typography>
               {payments.length === 0 && <Typography color="text.secondary">No payments yet.</Typography>}
               {payments.slice(0, 4).map((p) => (
-                <Stack key={p.id} direction="row" justifyContent="space-between" sx={{ py: 1 }}>
+                <Stack key={p.id} direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 1 }} gap={1}>
                   <Typography variant="body2">
                     ₹{p.amount} · {p.invoice_number || `Pay #${p.id}`}
                   </Typography>
-                  <Chip size="small" label={p.status} color={p.status === 'success' ? 'success' : 'default'} />
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip size="small" label={p.status} color={p.status === 'success' ? 'success' : 'warning'} />
+                    {p.status === 'pending' && (
+                      <Button
+                        size="small"
+                        onClick={() => {
+                          setActivePayment(p);
+                          setPayOpen(true);
+                        }}
+                      >
+                        Pay UPI
+                      </Button>
+                    )}
+                  </Stack>
                 </Stack>
               ))}
               <Typography component={RouterLink} to="/patient/payments" variant="body2" color="primary">
@@ -225,6 +287,19 @@ export default function PatientDashboard() {
           </Card>
         </Grid>
       </Grid>
+
+      <UpiPayDialog
+        open={payOpen}
+        payment={activePayment}
+        onClose={() => {
+          setPayOpen(false);
+          setActivePayment(null);
+        }}
+        onPaid={async (paid) => {
+          setMsg(`UPI payment successful · ${paid.invoice_number || `#${paid.id}`}`);
+          await reload();
+        }}
+      />
     </Stack>
   );
 }

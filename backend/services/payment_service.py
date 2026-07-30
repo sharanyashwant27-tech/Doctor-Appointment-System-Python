@@ -17,7 +17,7 @@ from models.payment import Payment, PaymentStatus
 from models.user import User, UserRole
 from services.audit_service import write_audit
 from notifications.notification_service import create_notification
-from services.payment_gateway import get_payment_gateway
+from services.payment_gateway import build_upi_link, get_payment_gateway
 from reports.pdf_service import build_invoice_pdf
 
 
@@ -27,6 +27,34 @@ PAID_APPOINTMENT_STATUSES = {
     AppointmentStatus.completed,
     AppointmentStatus.rescheduled,
 }
+
+
+def _attach_upi_fields(data: dict) -> dict:
+    """Add UPI QR / deep-link fields so the patient UI can collect via UPI."""
+    vpa = (settings.UPI_VPA or "medibook@upi").strip()
+    payee = (settings.UPI_PAYEE_NAME or "MediBook Clinic").strip()
+    ref = str(data.get("gateway_ref") or data.get("transaction_id") or f"MB{data.get('id', '')}")
+    # Strip stored UTR suffix when rebuilding the intent
+    ref = ref.split("|UTR:")[0]
+    amount = float(data.get("amount") or 0)
+    currency = str(data.get("currency") or "INR")
+    note = f"MediBook appointment {data.get('appointment_id', '')}"
+    link = build_upi_link(
+        vpa=vpa,
+        payee_name=payee,
+        amount=amount,
+        currency=currency,
+        transaction_ref=ref,
+        note=note,
+    )
+    data["upi_vpa"] = vpa
+    data["upi_payee_name"] = payee
+    data["upi_link"] = link
+    data["upi_qr_data"] = link
+    data["payment_instructions"] = (
+        f"Pay ₹{amount:.2f} via UPI to {vpa}. Scan the QR or open your UPI app, then tap Confirm payment."
+    )
+    return data
 
 
 def payment_to_dict(p: Payment, db: Optional[Session] = None) -> dict:
@@ -45,7 +73,7 @@ def payment_to_dict(p: Payment, db: Optional[Session] = None) -> dict:
             )
             if doctor and doctor.user:
                 doctor_name = doctor.user.full_name
-    return {
+    data = {
         "id": p.id,
         "appointment_id": p.appointment_id,
         "patient_id": p.patient_id,
@@ -62,6 +90,7 @@ def payment_to_dict(p: Payment, db: Optional[Session] = None) -> dict:
         "patient_name": patient_name,
         "doctor_name": doctor_name,
     }
+    return _attach_upi_fields(data)
 
 
 def checkout(db: Session, user: User, appointment_id: int, currency: str = "INR") -> dict:
@@ -98,7 +127,7 @@ def checkout(db: Session, user: User, appointment_id: int, currency: str = "INR"
         amount=amount,
         currency=currency,
         status=PaymentStatus.pending,
-        gateway=settings.PAYMENT_GATEWAY or "mock",
+        gateway=(settings.PAYMENT_GATEWAY or "upi").lower(),
         gateway_ref=intent.gateway_ref,
     )
     db.add(payment)
@@ -109,14 +138,26 @@ def checkout(db: Session, user: User, appointment_id: int, currency: str = "INR"
         action="payment.checkout",
         entity_type="payment",
         entity_id=None,
-        details={"amount": amount, "gateway_ref": intent.gateway_ref, "transaction_id": intent.gateway_ref, "payment_mode": settings.PAYMENT_GATEWAY or "mock"},
+        details={
+            "amount": amount,
+            "gateway_ref": intent.gateway_ref,
+            "transaction_id": intent.gateway_ref,
+            "payment_mode": (settings.PAYMENT_GATEWAY or "upi").lower(),
+            "upi_vpa": intent.upi_vpa,
+        },
     )
     db.commit()
     db.refresh(payment)
     return payment_to_dict(payment, db)
 
 
-def confirm(db: Session, user: User, payment_id: int, force_fail: bool = False) -> dict:
+def confirm(
+    db: Session,
+    user: User,
+    payment_id: int,
+    force_fail: bool = False,
+    upi_reference: Optional[str] = None,
+) -> dict:
     patient = db.scalar(select(PatientProfile).where(PatientProfile.user_id == user.id))
     payment = db.get(Payment, payment_id)
     if payment is None:
@@ -133,11 +174,17 @@ def confirm(db: Session, user: User, payment_id: int, force_fail: bool = False) 
         raise PaymentError("Missing gateway reference")
 
     gateway = get_payment_gateway()
-    result = gateway.confirm(payment.gateway_ref, meta={"force_fail": force_fail})
+    result = gateway.confirm(
+        payment.gateway_ref,
+        meta={"force_fail": force_fail, "upi_reference": upi_reference},
+    )
     if result.status == "success":
         payment.status = PaymentStatus.success
         payment.paid_at = datetime.now(timezone.utc)
         payment.invoice_number = f"INV-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid4().hex[:8].upper()}"
+        if upi_reference:
+            # Keep original gateway ref; store UTR in invoice-friendly audit trail
+            payment.gateway_ref = f"{payment.gateway_ref}|UTR:{upi_reference.strip()[:40]}"
         appt = db.get(Appointment, payment.appointment_id)
         if appt:
             appt.payment_status = PaymentStatusOnAppointment.paid
@@ -145,9 +192,9 @@ def confirm(db: Session, user: User, payment_id: int, force_fail: bool = False) 
             db,
             user_id=user.id,
             title="Payment successful",
-            message=f"Payment {payment.invoice_number} confirmed",
+            message=f"UPI payment {payment.invoice_number} confirmed",
             type="payment",
-            meta={"payment_id": payment.id},
+            meta={"payment_id": payment.id, "upi_reference": upi_reference},
         )
     else:
         payment.status = PaymentStatus.failed
@@ -161,7 +208,7 @@ def confirm(db: Session, user: User, payment_id: int, force_fail: bool = False) 
         action="payment.confirm",
         entity_type="payment",
         entity_id=str(payment.id),
-        details={"status": payment.status.value},
+        details={"status": payment.status.value, "upi_reference": upi_reference},
     )
     db.commit()
     db.refresh(payment)

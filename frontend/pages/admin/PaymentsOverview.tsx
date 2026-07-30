@@ -24,6 +24,12 @@ export default function PaymentsOverview() {
     { field: 'invoice_number', headerName: 'Invoice', flex: 1 },
     { field: 'amount', headerName: 'Amount', width: 120 },
     { field: 'status', headerName: 'Status', width: 120 },
+    {
+      field: 'gateway',
+      headerName: 'Mode',
+      width: 100,
+      valueGetter: (_v, row) => (row.payment_mode || row.gateway || 'upi').toUpperCase(),
+    },
     { field: 'patient_name', headerName: 'Patient', flex: 1 },
     {
       field: 'actions',

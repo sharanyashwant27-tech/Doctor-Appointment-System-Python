@@ -21,7 +21,13 @@ def checkout(payload: CheckoutRequest, user: PatientUser, db: DbSession):
 
 @router.post("/confirm", response_model=PaymentRead)
 def confirm(payload: ConfirmRequest, user: PatientUser, db: DbSession):
-    return payment_service.confirm(db, user, payload.payment_id, force_fail=payload.force_fail)
+    return payment_service.confirm(
+        db,
+        user,
+        payload.payment_id,
+        force_fail=payload.force_fail,
+        upi_reference=payload.upi_reference,
+    )
 
 
 @router.get("/", response_model=List[PaymentRead])

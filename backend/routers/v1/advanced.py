@@ -185,6 +185,11 @@ def google_connect(user: CurrentUser, db: DbSession):
     return advanced_service.connect_google_calendar(db, user)
 
 
+@router.get("/calendar/status")
+def google_calendar_status(user: CurrentUser, db: DbSession):
+    return advanced_service.calendar_status(db, user)
+
+
 @router.get("/calendar/export.ics")
 def calendar_ics(user: CurrentUser, db: DbSession):
     ics = advanced_service.calendar_ics_for_user(db, user)

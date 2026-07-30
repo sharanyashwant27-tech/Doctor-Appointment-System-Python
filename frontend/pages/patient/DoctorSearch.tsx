@@ -1,57 +1,45 @@
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
   Box,
   Button,
-  Card,
-  CardActions,
-  CardContent,
-  Chip,
+  List,
+  ListItemButton,
+  ListItemText,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { Doctor, doctorsApi } from '@services/endpoints';
 import { useDebounce } from '@hooks/useDebounce';
-
-const SPECIALTY_CATEGORIES = [
-  'All',
-  'Cardiology',
-  'General Medicine',
-  'Internal Medicine',
-  'Dermatology',
-  'Orthopedics',
-  'Neurology',
-  'Pediatrics',
-  'Gynecology',
-  'Obstetrics',
-  'ENT',
-  'Ophthalmology',
-  'Gastroenterology',
-  'Pulmonology',
-  'Psychiatry',
-  'Urology',
-  'Oncology',
-  'Endocrinology',
-  'Nephrology',
-  'Dentistry',
-];
+import { DOCTOR_SPECIALTIES } from '@components/FindDoctorsNavMenu';
 
 export default function DoctorSearch() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSpecialty = searchParams.get('specialty') || '';
   const [q, setQ] = useState('');
-  const [specialty, setSpecialty] = useState('');
   const [city, setCity] = useState('');
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState<string | false>(initialSpecialty || false);
   const dq = useDebounce(q, 300);
 
   useEffect(() => {
     doctorsApi
-      .list({ q: dq || undefined, specialty: specialty || undefined, city: city || undefined } as Record<string, string>)
+      .list({ q: dq || undefined, city: city || undefined, limit: 200 } as Record<string, string | number>)
       .then(setDoctors)
       .catch(() => setError('Failed to load doctors'));
-  }, [dq, specialty, city]);
+  }, [dq, city]);
+
+  useEffect(() => {
+    const s = searchParams.get('specialty');
+    if (s) setExpanded(s);
+  }, [searchParams]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Doctor[]>();
@@ -60,89 +48,109 @@ export default function DoctorSearch() {
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(d);
     }
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+    }
+    const fromData = Array.from(map.keys());
+    const ordered = DOCTOR_SPECIALTIES.filter((s) => fromData.includes(s));
+    const extras = fromData.filter((s) => !(DOCTOR_SPECIALTIES as readonly string[]).includes(s)).sort();
+    return [...ordered, ...extras].map((cat) => [cat, map.get(cat) || []] as [string, Doctor[]]);
   }, [doctors]);
 
-  const counts = useMemo(() => {
-    const c: Record<string, number> = { All: doctors.length };
-    for (const d of doctors) {
-      const s = d.specialty || 'Other';
-      c[s] = (c[s] || 0) + 1;
-    }
-    return c;
-  }, [doctors]);
+  const filteredGrouped = useMemo(() => {
+    if (!dq && !city) return grouped;
+    return grouped
+      .map(([cat, list]) => {
+        const next = list.filter((d) => {
+          const hay = `${d.full_name || ''} ${d.specialty} ${d.city || ''} ${d.bio || ''}`.toLowerCase();
+          const okQ = !dq || hay.includes(dq.toLowerCase());
+          const okCity = !city || (d.city || '').toLowerCase().includes(city.toLowerCase());
+          return okQ && okCity;
+        });
+        return [cat, next] as [string, Doctor[]];
+      })
+      .filter(([, list]) => list.length > 0);
+  }, [grouped, dq, city]);
 
   return (
     <Stack spacing={2}>
       <Typography variant="h4">Find doctors</Typography>
       <Typography color="text.secondary">
-        Browse by specialty category — medicine, cardiology, dermatology, and more.
+        Open a specialty dropdown to see doctor names, then pick one to book.
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
-
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-        {SPECIALTY_CATEGORIES.map((cat) => {
-          const selected = (cat === 'All' && !specialty) || specialty === cat;
-          const count = cat === 'All' ? undefined : counts[cat];
-          return (
-            <Chip
-              key={cat}
-              label={count != null ? `${cat} (${count})` : cat}
-              color={selected ? 'primary' : 'default'}
-              variant={selected ? 'filled' : 'outlined'}
-              onClick={() => setSpecialty(cat === 'All' ? '' : cat)}
-              clickable
-            />
-          );
-        })}
-      </Box>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
         <TextField label="Search name / keyword" fullWidth value={q} onChange={(e) => setQ(e.target.value)} />
         <TextField label="City" fullWidth value={city} onChange={(e) => setCity(e.target.value)} placeholder="Mumbai, Delhi…" />
       </Stack>
 
-      {doctors.length === 0 && !error && (
-        <Alert severity="info">No doctors match these filters. Try another specialty or clear search.</Alert>
+      {filteredGrouped.length === 0 && !error && (
+        <Alert severity="info">No doctors match these filters.</Alert>
       )}
 
-      {grouped.map(([cat, list]) => (
-        <Stack key={cat} spacing={1.5}>
-          <Typography variant="h6" sx={{ mt: 1 }}>
-            {cat}
-            <Typography component="span" color="text.secondary" variant="body2" sx={{ ml: 1 }}>
-              {list.length} doctor{list.length === 1 ? '' : 's'}
-            </Typography>
-          </Typography>
-          {list.map((d) => (
-            <Card key={d.id}>
-              <CardContent>
-                <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
-                  <Box>
-                    <Typography variant="h6">{d.full_name || `Doctor #${d.id}`}</Typography>
-                    <Typography color="text.secondary">
-                      {d.specialty} · {d.city || '—'} · {d.experience_years}+ yrs · ★ {d.rating_avg?.toFixed?.(1) ?? d.rating_avg}
-                    </Typography>
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      {d.qualification ? `${d.qualification} · ` : ''}
-                      {d.bio || 'Verified MediBook clinician'}
-                      {d.is_verified ? ' · Verified' : ' · Pending verification'}
-                    </Typography>
-                  </Box>
-                  <Typography variant="h6" color="primary" sx={{ whiteSpace: 'nowrap' }}>
-                    ₹{d.consultation_fee}
-                  </Typography>
-                </Stack>
-              </CardContent>
-              <CardActions>
-                <Button component={RouterLink} to={`/patient/doctors/${d.id}`} variant="contained">
-                  View & book
-                </Button>
-              </CardActions>
-            </Card>
-          ))}
-        </Stack>
-      ))}
+      <Box>
+        {filteredGrouped.map(([cat, list]) => (
+          <Accordion
+            key={cat}
+            disableGutters
+            expanded={expanded === cat}
+            onChange={(_, isExpanded) => {
+              setExpanded(isExpanded ? cat : false);
+              if (isExpanded) {
+                setSearchParams({ specialty: cat });
+              } else if (searchParams.get('specialty') === cat) {
+                setSearchParams({});
+              }
+            }}
+            sx={{
+              mb: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: '12px !important',
+              overflow: 'hidden',
+              '&:before': { display: 'none' },
+              bgcolor: 'background.paper',
+            }}
+          >
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Stack direction="row" spacing={1} alignItems="center" sx={{ width: '100%', pr: 1 }}>
+                <Typography fontWeight={700} sx={{ flexGrow: 1 }}>
+                  {cat}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {list.length} doctor{list.length === 1 ? '' : 's'}
+                </Typography>
+              </Stack>
+            </AccordionSummary>
+            <AccordionDetails sx={{ pt: 0 }}>
+              <List disablePadding>
+                {list.map((d) => (
+                  <ListItemButton
+                    key={d.id}
+                    component={RouterLink}
+                    to={`/patient/doctors/${d.id}`}
+                    sx={{
+                      borderRadius: 2,
+                      mb: 0.5,
+                      border: '1px solid',
+                      borderColor: 'rgba(0, 200, 83, 0.14)',
+                    }}
+                  >
+                    <ListItemText
+                      primary={d.full_name || `Doctor #${d.id}`}
+                      secondary={`${d.city || '—'} · ${d.experience_years}+ yrs · ★ ${Number(d.rating_avg || 0).toFixed(1)} · ₹${d.consultation_fee}`}
+                    />
+                    <Button size="small" variant="contained" component="span">
+                      View
+                    </Button>
+                  </ListItemButton>
+                ))}
+              </List>
+            </AccordionDetails>
+          </Accordion>
+        ))}
+      </Box>
     </Stack>
   );
 }

@@ -1,5 +1,6 @@
-import { Box, Container, Typography } from '@mui/material';
+import { Box, Container } from '@mui/material';
 import { Outlet } from 'react-router-dom';
+import BrandLink from '@components/BrandLink';
 
 export default function AuthLayout() {
   return (
@@ -19,15 +20,16 @@ export default function AuthLayout() {
       }}
     >
       <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
-        <Typography
-          variant="h3"
-          component="h1"
-          gutterBottom
-          textAlign="center"
-          sx={{ color: '#fff', fontWeight: 700, textShadow: '0 4px 18px rgba(0,0,0,0.25)' }}
-        >
-          MediBook
-        </Typography>
+        <Box textAlign="center" sx={{ mb: 2 }}>
+          <BrandLink
+            variant="h3"
+            sx={{
+              color: '#fff',
+              fontWeight: 700,
+              textShadow: '0 4px 18px rgba(0,0,0,0.25)',
+            }}
+          />
+        </Box>
         <Box
           className="mb-green-panel"
           sx={{

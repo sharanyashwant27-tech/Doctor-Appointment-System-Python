@@ -45,10 +45,17 @@ export type Payment = {
   status: string;
   gateway: string;
   gateway_ref?: string;
+  payment_mode?: string;
+  transaction_id?: string;
   invoice_number?: string;
   paid_at?: string;
   patient_name?: string;
   doctor_name?: string;
+  upi_vpa?: string;
+  upi_payee_name?: string;
+  upi_link?: string;
+  upi_qr_data?: string;
+  payment_instructions?: string;
 };
 
 export type Notification = {
@@ -171,8 +178,10 @@ export const paymentsApi = {
   list: () => apiClient.get<Payment[]>('/v1/payments/').then((r) => r.data),
   checkout: (appointment_id: number) =>
     apiClient.post<Payment>('/v1/payments/checkout', { appointment_id }).then((r) => r.data),
-  confirm: (payment_id: number) =>
-    apiClient.post<Payment>('/v1/payments/confirm', { payment_id }).then((r) => r.data),
+  confirm: (payment_id: number, upi_reference?: string) =>
+    apiClient
+      .post<Payment>('/v1/payments/confirm', { payment_id, upi_reference })
+      .then((r) => r.data),
   refund: (payment_id: number) =>
     apiClient.post<Payment>(`/v1/payments/${payment_id}/refund`).then((r) => r.data),
   invoiceUrl: (id: number) => `/api/v1/payments/${id}/invoice.pdf`,
@@ -272,6 +281,7 @@ export const advancedApi = {
   submitClaim: (body: { policy_id: number; amount: number; appointment_id?: number; notes?: string }) =>
     apiClient.post('/v1/advanced/insurance/claims', body).then((r) => r.data),
   connectCalendar: () => apiClient.post('/v1/advanced/calendar/google/connect').then((r) => r.data),
+  calendarStatus: () => apiClient.get('/v1/advanced/calendar/status').then((r) => r.data),
   calendarIcsUrl: () => '/api/v1/advanced/calendar/export.ics',
   sign: (body: { entity_type: string; entity_id: number; signature_data: string }) =>
     apiClient.post('/v1/advanced/signatures', body).then((r) => r.data),

@@ -1,7 +1,7 @@
 """Payments: mock gateway unit + checkout/confirm API flow."""
 from datetime import timedelta
 
-from services.payment_gateway import MockPaymentGateway
+from services.payment_gateway import MockPaymentGateway, UpiPaymentGateway
 
 
 def test_mock_gateway_success():
@@ -16,6 +16,15 @@ def test_mock_gateway_force_fail():
     intent = gw.create_payment(50.0)
     result = gw.confirm(intent.gateway_ref, meta={"force_fail": True})
     assert result.status == "failed"
+
+
+def test_upi_gateway_intent_link():
+    gw = UpiPaymentGateway()
+    intent = gw.create_payment(250.0, meta={"appointment_id": 9})
+    assert intent.upi_vpa
+    assert intent.upi_link and intent.upi_link.startswith("upi://pay?")
+    assert "am=250.00" in intent.upi_link
+    assert gw.confirm(intent.gateway_ref, meta={"upi_reference": "ABC"}).status == "success"
 
 
 def test_payments_list_requires_auth(client):
@@ -81,11 +90,13 @@ def test_checkout_and_confirm_success(
     assert payment["appointment_id"] == appt_id
     assert payment["gateway_ref"]
     assert float(payment["amount"]) == 750.0
+    assert payment.get("upi_vpa")
+    assert payment.get("upi_link", "").startswith("upi://pay")
 
     confirm = client.post(
         "/api/v1/payments/confirm",
         headers=patient_h,
-        json={"payment_id": payment["id"], "force_fail": False},
+        json={"payment_id": payment["id"], "force_fail": False, "upi_reference": "UTRTEST001"},
     )
     assert confirm.status_code == 200, confirm.text
     confirmed = confirm.json()

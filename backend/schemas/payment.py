@@ -16,6 +16,7 @@ class CheckoutRequest(BaseModel):
 class ConfirmRequest(BaseModel):
     payment_id: int
     force_fail: bool = False
+    upi_reference: Optional[str] = None
 
 
 class PaymentRead(ORMModel):
@@ -34,3 +35,8 @@ class PaymentRead(ORMModel):
     created_at: Optional[datetime] = None
     patient_name: Optional[str] = None
     doctor_name: Optional[str] = None
+    upi_vpa: Optional[str] = None
+    upi_payee_name: Optional[str] = None
+    upi_link: Optional[str] = None
+    upi_qr_data: Optional[str] = None
+    payment_instructions: Optional[str] = None

@@ -17,7 +17,7 @@ All routes under `/api/v1/advanced/...`. UI: **Advanced** in patient/doctor nav;
 | Multi-Hospital Support | `hospitals` + branch `hospital_id` attach |
 | Doctor Rating System | Patient reviews update `doctors.rating` |
 | Insurance Integration | Policies + auto-approved demo claims |
-| Google Calendar Sync | Demo OAuth connect + `.ics` export |
+| Google Calendar Sync | ICS export + Import in Google Calendar (no OAuth client required) |
 | Digital Signature | Stored signatures on Rx / certificates |
 | Medical Certificate Generator | PDF certificates (fitness / sick leave / travel) |
 | AI Health Assistant | Conversational triage assistant (`POST /assistant/chat`) |

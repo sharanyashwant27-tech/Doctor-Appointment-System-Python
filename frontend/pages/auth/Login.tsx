@@ -3,11 +3,10 @@ import { FormEvent, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '@context/AuthContext';
 import { advancedApi } from '@services/endpoints';
+import { dashboardPathForRole } from '@/utils/navigation';
 
 function homeForRole(role: string) {
-  if (role === 'admin') return '/admin';
-  if (role === 'doctor') return '/doctor';
-  return '/patient';
+  return dashboardPathForRole(role);
 }
 
 export default function Login() {

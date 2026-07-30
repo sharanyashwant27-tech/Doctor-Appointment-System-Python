@@ -33,7 +33,10 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
     CORS_ORIGINS: str = "http://localhost:8905"
-    PAYMENT_GATEWAY: str = "mock"
+    # Default UPI collect (QR + upi:// intent). Override VPA via .env for real collections.
+    PAYMENT_GATEWAY: str = "upi"
+    UPI_VPA: str = "medibook@upi"
+    UPI_PAYEE_NAME: str = "MediBook Clinic"
     REMINDER_HOURS_BEFORE: int = 24
 
     # Security

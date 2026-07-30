@@ -466,6 +466,11 @@ def submit_claim(
 
 
 def connect_google_calendar(db: Session, user: User) -> dict[str, Any]:
+    """Mark calendar sync as connected and return ICS-based import steps.
+
+    Real Google OAuth needs a Cloud Console client id/secret. Until those are
+    configured we sync via .ics download + Google Calendar Import (no OAuth popup).
+    """
     row = db.scalar(select(CalendarSyncToken).where(CalendarSyncToken.user_id == user.id))
     if not row:
         row = CalendarSyncToken(user_id=user.id)
@@ -475,12 +480,34 @@ def connect_google_calendar(db: Session, user: User) -> dict[str, Any]:
     row.calendar_id = "primary"
     row.provider = "google"
     db.commit()
-    # OAuth stub URL for UI
-    auth_url = (
-        "https://accounts.google.com/o/oauth2/v2/auth?"
-        "client_id=DEMO&redirect_uri=http://localhost:8905/patient/calendar-sync&response_type=code&scope=calendar"
-    )
-    return {"connected": True, "provider": "google", "auth_url": auth_url, "demo": True}
+    return {
+        "connected": True,
+        "provider": "google",
+        "demo": True,
+        "sync_method": "ics",
+        # Never return accounts.google.com/o/oauth2 — DEMO client_id is blocked by Google.
+        "auth_url": None,
+        "google_calendar_url": "https://calendar.google.com/calendar/u/0/r/settings/export",
+        "ics_path": "/api/v1/advanced/calendar/export.ics",
+        "message": (
+            "Calendar linked. Download your MediBook .ics file, then in Google Calendar "
+            "open Settings → Import & export → Import, and choose medibook.ics."
+        ),
+    }
+
+
+def calendar_status(db: Session, user: User) -> dict[str, Any]:
+    row = db.scalar(select(CalendarSyncToken).where(CalendarSyncToken.user_id == user.id))
+    if not row or not row.connected:
+        return {"connected": False, "provider": None, "sync_method": "ics"}
+    return {
+        "connected": True,
+        "provider": row.provider or "google",
+        "calendar_id": row.calendar_id,
+        "sync_method": "ics",
+        "google_calendar_url": "https://calendar.google.com/calendar/u/0/r/settings/export",
+        "ics_path": "/api/v1/advanced/calendar/export.ics",
+    }
 
 
 def calendar_ics_for_user(db: Session, user: User) -> str:
