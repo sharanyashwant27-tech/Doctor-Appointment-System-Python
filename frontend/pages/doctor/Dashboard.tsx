@@ -14,11 +14,11 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router-dom';
 import { Appointment, Availability, appointmentsApi, doctorsApi, recordsApi } from '@services/endpoints';
 import { useAuthContext } from '@context/AuthContext';
-
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+import { tStatus } from '@/i18n';
 
 const linkCardSx = {
   height: '100%',
@@ -63,12 +63,15 @@ function SectionCard({
 }
 
 export default function DoctorDashboard() {
+  const { t } = useTranslation();
   const { user } = useAuthContext();
   const [items, setItems] = useState<Appointment[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [prescriptionCount, setPrescriptionCount] = useState(0);
   const [rating, setRating] = useState(0);
   const [error, setError] = useState('');
+
+  const dayNames = (t('days', { returnObjects: true }) as string[]) || [];
 
   useEffect(() => {
     Promise.all([appointmentsApi.list(), recordsApi.list(), doctorsApi.list()])
@@ -84,8 +87,8 @@ export default function DoctorDashboard() {
           setAvailability(await doctorsApi.availability(mine.id));
         }
       })
-      .catch(() => setError('Failed to load dashboard'));
-  }, [user?.email, user?.full_name]);
+      .catch(() => setError(t('doctor.dashboard.loadFailed')));
+  }, [user?.email, user?.full_name, t]);
 
   const todayKey = dayjs().format('YYYY-MM-DD');
   const today = useMemo(
@@ -109,44 +112,50 @@ export default function DoctorDashboard() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4">Doctor dashboard</Typography>
+      <Typography variant="h4">{t('doctor.dashboard.title')}</Typography>
       <Typography color="text.secondary">
-        Dr. {user?.full_name} · Click any card to open its page
+        {t('doctor.dashboard.welcome', { name: user?.full_name })}
       </Typography>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Grid container spacing={2}>
         <Grid item xs={6} md={2}>
-          <StatCard label="Today's appointments" value={today.length} to="/doctor/queue" />
+          <StatCard label={t('doctor.dashboard.today')} value={today.length} to="/doctor/queue" />
         </Grid>
         <Grid item xs={6} md={2}>
-          <StatCard label="Upcoming" value={upcoming.length} to="/doctor/calendar" />
+          <StatCard label={t('doctor.dashboard.upcoming')} value={upcoming.length} to="/doctor/calendar" />
         </Grid>
         <Grid item xs={6} md={2}>
-          <StatCard label="Completed" value={completed} to="/doctor/queue" />
+          <StatCard label={t('doctor.dashboard.completed')} value={completed} to="/doctor/queue" />
         </Grid>
         <Grid item xs={6} md={2}>
-          <StatCard label="Cancelled" value={cancelled} to="/doctor/queue" />
+          <StatCard label={t('doctor.dashboard.cancelled')} value={cancelled} to="/doctor/queue" />
         </Grid>
         <Grid item xs={6} md={2}>
-          <StatCard label="Prescription count" value={prescriptionCount} to="/doctor/prescriptions/new" />
+          <StatCard
+            label={t('doctor.dashboard.prescriptions')}
+            value={prescriptionCount}
+            to="/doctor/prescriptions/new"
+          />
         </Grid>
         <Grid item xs={6} md={2}>
-          <StatCard label="Patient reviews" value={rating.toFixed(1)} to="/profile" />
+          <StatCard label={t('doctor.dashboard.reviews')} value={rating.toFixed(1)} to="/profile" />
         </Grid>
       </Grid>
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={7}>
-          <SectionCard title="Today's appointments" to="/doctor/queue">
-            {today.length === 0 && <Typography color="text.secondary">No visits scheduled today.</Typography>}
+          <SectionCard title={t('doctor.dashboard.today')} to="/doctor/queue">
+            {today.length === 0 && (
+              <Typography color="text.secondary">{t('doctor.dashboard.noToday')}</Typography>
+            )}
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Time</TableCell>
-                  <TableCell>Patient</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Token</TableCell>
+                  <TableCell>{t('doctor.dashboard.colTime')}</TableCell>
+                  <TableCell>{t('doctor.dashboard.colPatient')}</TableCell>
+                  <TableCell>{t('doctor.dashboard.colStatus')}</TableCell>
+                  <TableCell>{t('doctor.dashboard.colToken')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -157,9 +166,9 @@ export default function DoctorDashboard() {
                       <TableCell>{dayjs(a.scheduled_at).format('HH:mm')}</TableCell>
                       <TableCell>{a.patient_name || `#${a.patient_id}`}</TableCell>
                       <TableCell>
-                        <Chip size="small" label={a.status} />
+                        <Chip size="small" label={tStatus(t, a.status)} />
                       </TableCell>
-                      <TableCell>{a.token_number ?? '—'}</TableCell>
+                      <TableCell>{a.token_number ?? t('common.emDash')}</TableCell>
                     </TableRow>
                   ))}
               </TableBody>
@@ -172,9 +181,11 @@ export default function DoctorDashboard() {
           >
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Upcoming appointments
+                {t('doctor.dashboard.upcomingTitle')}
               </Typography>
-              {upcoming.length === 0 && <Typography color="text.secondary">Nothing upcoming.</Typography>}
+              {upcoming.length === 0 && (
+                <Typography color="text.secondary">{t('doctor.dashboard.nothingUpcoming')}</Typography>
+              )}
               {upcoming.map((a) => (
                 <Stack
                   key={a.id}
@@ -185,27 +196,31 @@ export default function DoctorDashboard() {
                   borderColor="divider"
                 >
                   <Typography>
-                    {a.patient_name || `Patient #${a.patient_id}`} ·{' '}
+                    {a.patient_name || t('doctor.dashboard.patientFallback', { id: a.patient_id })} ·{' '}
                     {dayjs(a.scheduled_at).format('ddd D MMM HH:mm')}
                   </Typography>
-                  <Chip size="small" label={a.status} />
+                  <Chip size="small" label={tStatus(t, a.status)} />
                 </Stack>
               ))}
             </CardContent>
           </Card>
         </Grid>
         <Grid item xs={12} md={5}>
-          <SectionCard title="Availability calendar" to="/doctor/availability">
+          <SectionCard title={t('doctor.dashboard.availabilityTitle')} to="/doctor/availability">
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Weekly slots — open Availability to manage
+              {t('doctor.dashboard.availabilityHint')}
             </Typography>
-            {availability.length === 0 && <Typography color="text.secondary">No availability set.</Typography>}
+            {availability.length === 0 && (
+              <Typography color="text.secondary">{t('doctor.dashboard.noAvailability')}</Typography>
+            )}
             {availability
               .filter((s) => s.is_active)
               .map((s) => (
                 <Stack key={s.id} direction="row" justifyContent="space-between" sx={{ py: 0.75 }}>
                   <Typography fontWeight={600}>
-                    {s.day_of_week != null ? DAY_NAMES[s.day_of_week] : s.specific_date || 'Date'}
+                    {s.day_of_week != null
+                      ? dayNames[s.day_of_week]
+                      : s.specific_date || t('day.date')}
                   </Typography>
                   <Typography variant="body2">
                     {String(s.start_time).slice(0, 5)} – {String(s.end_time).slice(0, 5)}
@@ -219,9 +234,9 @@ export default function DoctorDashboard() {
             sx={{ ...linkCardSx, display: 'block', mt: 2 }}
           >
             <CardContent>
-              <Typography variant="h6">Pharmacy stock</Typography>
+              <Typography variant="h6">{t('doctor.dashboard.pharmacyTitle')}</Typography>
               <Typography color="text.secondary" variant="body2">
-                Check medicine availability before prescribing
+                {t('doctor.dashboard.pharmacyHint')}
               </Typography>
             </CardContent>
           </Card>
@@ -231,9 +246,9 @@ export default function DoctorDashboard() {
             sx={{ ...linkCardSx, display: 'block', mt: 2 }}
           >
             <CardContent>
-              <Typography variant="h6">Earnings</Typography>
+              <Typography variant="h6">{t('doctor.dashboard.earningsTitle')}</Typography>
               <Typography color="text.secondary" variant="body2">
-                View consultation payments
+                {t('doctor.dashboard.earningsHint')}
               </Typography>
             </CardContent>
           </Card>

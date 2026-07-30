@@ -1,8 +1,10 @@
 import { Alert, Button, Card, CardActions, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Payment, paymentsApi } from '@services/endpoints';
 import { downloadAuthed } from '@services/download';
 import UpiPayDialog from '@components/UpiPayDialog';
+import { tStatus } from '@/i18n';
 
 function errMsg(e: unknown, fallback: string) {
   const ax = e as { response?: { data?: { message?: string; detail?: string } } };
@@ -10,6 +12,7 @@ function errMsg(e: unknown, fallback: string) {
 }
 
 export default function Payments() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Payment[]>([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -20,7 +23,7 @@ export default function Payments() {
     try {
       setItems(await paymentsApi.list());
     } catch {
-      setError('Failed to load payments');
+      setError(t('patient.payments.loadFailed'));
     }
   }
 
@@ -30,8 +33,8 @@ export default function Payments() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Payment history</Typography>
-      <Typography color="text.secondary">UPI payments, invoices, and pending checkouts</Typography>
+      <Typography variant="h4">{t('patient.payments.title')}</Typography>
+      <Typography color="text.secondary">{t('patient.payments.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -42,30 +45,35 @@ export default function Payments() {
           {error}
         </Alert>
       )}
-      {items.length === 0 && <Alert severity="info">No payments yet. Pay from My appointments.</Alert>}
+      {items.length === 0 && <Alert severity="info">{t('patient.payments.empty')}</Alert>}
       {items.map((p) => (
         <Card key={p.id}>
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography fontWeight={600}>
-                {p.invoice_number || `Payment #${p.id}`}
+                {p.invoice_number || t('patient.payments.paymentFallback', { id: p.id })}
               </Typography>
               <Chip
                 size="small"
-                label={p.status}
+                label={tStatus(t, p.status)}
                 color={p.status === 'success' ? 'success' : p.status === 'pending' ? 'warning' : 'default'}
               />
               <Chip size="small" variant="outlined" label={(p.payment_mode || p.gateway || 'upi').toUpperCase()} />
             </Stack>
             <Typography variant="body2">
-              ₹{p.amount} {p.currency} · Appointment #{p.appointment_id}
+              {t('patient.payments.amountLine', {
+                amount: p.amount,
+                currency: p.currency,
+                appointmentId: p.appointment_id,
+              })}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {p.doctor_name || 'Doctor'} · {p.paid_at ? new Date(p.paid_at).toLocaleString() : 'Not paid yet'}
+              {p.doctor_name || t('patient.payments.doctorFallback')} ·{' '}
+              {p.paid_at ? new Date(p.paid_at).toLocaleString() : t('status.notPaidYet')}
             </Typography>
             {p.upi_vpa && p.status === 'pending' && (
               <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                Pay to UPI: {p.upi_vpa}
+                {t('patient.payments.payToUpi', { vpa: p.upi_vpa })}
               </Typography>
             )}
           </CardContent>
@@ -79,7 +87,7 @@ export default function Payments() {
                   setPayOpen(true);
                 }}
               >
-                Complete UPI payment
+                {t('patient.payments.completeUpi')}
               </Button>
             )}
             {p.status === 'success' && (
@@ -88,13 +96,13 @@ export default function Payments() {
                 onClick={async () => {
                   try {
                     await downloadAuthed(`/api/v1/payments/${p.id}/invoice.pdf`, `invoice-${p.id}.pdf`);
-                    setMsg('Invoice downloaded');
+                    setMsg(t('patient.payments.invoiceDownloaded'));
                   } catch (e) {
-                    setError(errMsg(e, 'Invoice download failed'));
+                    setError(errMsg(e, t('patient.payments.invoiceFailed')));
                   }
                 }}
               >
-                Download invoice
+                {t('patient.payments.downloadInvoice')}
               </Button>
             )}
           </CardActions>
@@ -109,7 +117,11 @@ export default function Payments() {
           setActivePayment(null);
         }}
         onPaid={async (paid) => {
-          setMsg(`UPI payment successful · ${paid.invoice_number || `#${paid.id}`}`);
+          setMsg(
+            t('patient.payments.upiSuccess', {
+              invoice: paid.invoice_number || `#${paid.id}`,
+            }),
+          );
           await load();
         }}
       />

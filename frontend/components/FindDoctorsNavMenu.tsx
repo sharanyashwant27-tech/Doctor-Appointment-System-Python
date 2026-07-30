@@ -14,6 +14,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import ArrowRightIcon from '@mui/icons-material/ArrowRight';
 import LocalHospitalOutlinedIcon from '@mui/icons-material/LocalHospitalOutlined';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Doctor, doctorsApi } from '@services/endpoints';
 
 export const DOCTOR_SPECIALTIES = [
@@ -38,8 +39,25 @@ export const DOCTOR_SPECIALTIES = [
   'Dentistry',
 ] as const;
 
-/** App-bar dropdown: Find doctors → specialty → doctor names. */
-export default function FindDoctorsNavMenu() {
+function specialtyLabel(t: (k: string) => string, specialty: string) {
+  const key = `specialty.${specialty}`;
+  const translated = t(key);
+  return translated === key ? specialty : translated;
+}
+
+type Props = {
+  variant?: 'appbar' | 'sidebar';
+  active?: boolean;
+  onNavigate?: () => void;
+};
+
+/** Find doctors → specialty → doctor names menu for the app bar or sidebar. */
+export default function FindDoctorsNavMenu({
+  variant = 'appbar',
+  active = false,
+  onNavigate,
+}: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [subAnchor, setSubAnchor] = useState<null | HTMLElement>(null);
@@ -83,6 +101,12 @@ export default function FindDoctorsNavMenu() {
     setActiveSpecialty(null);
   }
 
+  function go(path: string) {
+    closeAll();
+    onNavigate?.();
+    navigate(path);
+  }
+
   async function openSpecialty(event: React.MouseEvent<HTMLElement>, specialty: string) {
     setActiveSpecialty(specialty);
     setSubAnchor(event.currentTarget);
@@ -101,6 +125,11 @@ export default function FindDoctorsNavMenu() {
   }
 
   const doctorsInActive = activeSpecialty ? bySpecialty.get(activeSpecialty) || [] : [];
+  const activeLabel = activeSpecialty
+    ? activeSpecialty === 'Other'
+      ? t('findDoctors.otherSpecialty')
+      : specialtyLabel(t, activeSpecialty)
+    : '';
 
   return (
     <>
@@ -109,9 +138,25 @@ export default function FindDoctorsNavMenu() {
         size="small"
         endIcon={<ArrowDropDownIcon />}
         onClick={(e) => setAnchorEl(e.currentTarget)}
-        sx={{ fontWeight: open ? 700 : 400, opacity: open ? 1 : 0.9 }}
+        sx={
+          variant === 'sidebar'
+            ? {
+                width: '100%',
+                minHeight: 44,
+                mb: 0.5,
+                px: 2,
+                justifyContent: 'space-between',
+                borderRadius: 2,
+                color: '#fff',
+                fontWeight: active || open ? 700 : 500,
+                bgcolor: active ? 'rgba(255,255,255,0.18)' : 'transparent',
+                boxShadow: active ? 'inset 3px 0 0 #A7F3D0' : 'none',
+                '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+              }
+            : { fontWeight: open ? 700 : 400, opacity: open ? 1 : 0.9 }
+        }
       >
-        Find doctors
+        {t('findDoctors.trigger')}
       </Button>
 
       <Menu
@@ -124,11 +169,10 @@ export default function FindDoctorsNavMenu() {
       >
         <MenuItem
           onClick={() => {
-            closeAll();
-            navigate('/patient/doctors');
+            go('/patient/doctors');
           }}
         >
-          <ListItemText primary="Browse all specialties" secondary="Open find doctors page" />
+          <ListItemText primary={t('findDoctors.browseAll')} secondary={t('findDoctors.browseAllHint')} />
         </MenuItem>
         <Divider />
         {specialties.map((specialty) => (
@@ -142,15 +186,15 @@ export default function FindDoctorsNavMenu() {
               <LocalHospitalOutlinedIcon fontSize="small" color="primary" />
             </ListItemIcon>
             <ListItemText
-              primary={specialty}
-              secondary={`${bySpecialty.get(specialty)?.length ?? 0} doctor(s)`}
+              primary={specialty === 'Other' ? t('findDoctors.otherSpecialty') : specialtyLabel(t, specialty)}
+              secondary={t('findDoctors.doctorCount', { count: bySpecialty.get(specialty)?.length ?? 0 })}
             />
             <ArrowRightIcon fontSize="small" sx={{ ml: 1, opacity: 0.7 }} />
           </MenuItem>
         ))}
         {specialties.length === 0 && (
           <MenuItem disabled>
-            <Typography variant="body2">No specialties loaded</Typography>
+            <Typography variant="body2">{t('findDoctors.emptySpecialties')}</Typography>
           </MenuItem>
         )}
       </Menu>
@@ -168,16 +212,16 @@ export default function FindDoctorsNavMenu() {
       >
         <Box px={2} py={1}>
           <Typography variant="subtitle2" color="primary">
-            {activeSpecialty}
+            {activeLabel}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            Select a doctor
+            {t('findDoctors.selectDoctor')}
           </Typography>
         </Box>
         <Divider />
         {loading && (
           <MenuItem disabled>
-            <CircularProgress size={18} sx={{ mr: 1 }} /> Loading…
+            <CircularProgress size={18} sx={{ mr: 1 }} /> {t('common.loading')}
           </MenuItem>
         )}
         {!loading &&
@@ -185,34 +229,35 @@ export default function FindDoctorsNavMenu() {
             <MenuItem
               key={d.id}
               onClick={() => {
-                closeAll();
-                navigate(`/patient/doctors/${d.id}`);
+                go(`/patient/doctors/${d.id}`);
               }}
             >
               <ListItemText
-                primary={d.full_name || `Doctor #${d.id}`}
-                secondary={`${d.city || '—'} · ₹${d.consultation_fee} · ★ ${Number(d.rating_avg || 0).toFixed(1)}`}
+                primary={d.full_name || t('findDoctors.doctorFallback', { id: d.id })}
+                secondary={t('findDoctors.metaLine', {
+                  city: d.city || t('common.emDash'),
+                  fee: d.consultation_fee,
+                  rating: Number(d.rating_avg || 0).toFixed(1),
+                })}
               />
             </MenuItem>
           ))}
         {!loading && doctorsInActive.length === 0 && (
           <MenuItem
             onClick={() => {
-              closeAll();
-              navigate(`/patient/doctors?specialty=${encodeURIComponent(activeSpecialty || '')}`);
+              go(`/patient/doctors?specialty=${encodeURIComponent(activeSpecialty || '')}`);
             }}
           >
-            <ListItemText primary="No doctors listed" secondary="Open category page" />
+            <ListItemText primary={t('findDoctors.noDoctors')} secondary={t('findDoctors.openCategory')} />
           </MenuItem>
         )}
         <Divider />
         <MenuItem
           onClick={() => {
-            closeAll();
-            navigate(`/patient/doctors?specialty=${encodeURIComponent(activeSpecialty || '')}`);
+            go(`/patient/doctors?specialty=${encodeURIComponent(activeSpecialty || '')}`);
           }}
         >
-          <ListItemText primary={`View all in ${activeSpecialty}`} />
+          <ListItemText primary={t('findDoctors.viewAllIn', { specialty: activeLabel })} />
         </MenuItem>
       </Menu>
     </>

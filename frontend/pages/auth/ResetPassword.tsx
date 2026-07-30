@@ -1,9 +1,11 @@
 import { Alert, Button, Paper, Stack, TextField, Typography } from '@mui/material';
 import { FormEvent, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { resetPassword } from '@services/auth';
 
 export default function ResetPassword() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const [token, setToken] = useState(params.get('token') || '');
   const [password, setPassword] = useState('');
@@ -14,24 +16,24 @@ export default function ResetPassword() {
     e.preventDefault();
     try {
       await resetPassword(token, password);
-      setMsg('Password updated. You can sign in.');
+      setMsg(t('auth.reset.success'));
       setError('');
     } catch {
-      setError('Reset failed — check token');
+      setError(t('auth.reset.failed'));
     }
   }
 
   return (
     <Paper sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom>
-        Reset password
+        {t('auth.reset.title')}
       </Typography>
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
         {error && <Alert severity="error">{error}</Alert>}
         {msg && <Alert severity="success">{msg}</Alert>}
-        <TextField label="Token" fullWidth required value={token} onChange={(e) => setToken(e.target.value)} />
+        <TextField label={t('auth.reset.token')} fullWidth required value={token} onChange={(e) => setToken(e.target.value)} />
         <TextField
-          label="New password"
+          label={t('auth.reset.newPassword')}
           type="password"
           fullWidth
           required
@@ -39,10 +41,10 @@ export default function ResetPassword() {
           onChange={(e) => setPassword(e.target.value)}
         />
         <Button type="submit" variant="contained">
-          Update password
+          {t('auth.reset.submit')}
         </Button>
         <Button component={RouterLink} to="/login">
-          Login
+          {t('auth.reset.login')}
         </Button>
       </Stack>
     </Paper>

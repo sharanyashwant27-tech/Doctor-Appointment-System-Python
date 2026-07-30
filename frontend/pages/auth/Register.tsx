@@ -9,10 +9,12 @@ import {
 } from '@mui/material';
 import { FormEvent, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { register as registerApi } from '@services/auth';
 import { useAuthContext } from '@context/AuthContext';
 
 export default function Register() {
+  const { t } = useTranslation();
   const { login } = useAuthContext();
   const navigate = useNavigate();
   const [form, setForm] = useState({
@@ -37,7 +39,7 @@ export default function Register() {
         full_name: form.full_name,
         phone: form.phone || undefined,
         role: form.role as 'patient' | 'doctor',
-        specialty: form.role === 'doctor' ? form.specialty || 'General' : undefined,
+        specialty: form.role === 'doctor' ? form.specialty || t('auth.register.defaultSpecialty') : undefined,
       });
       const user = await login(form.email, form.password);
       if (!user) throw new Error('Login failed');
@@ -45,7 +47,7 @@ export default function Register() {
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Registration failed';
+        t('auth.register.failed');
       setError(msg);
     } finally {
       setLoading(false);
@@ -55,19 +57,19 @@ export default function Register() {
   return (
     <Paper sx={{ p: 3 }}>
       <Typography variant="h5" gutterBottom>
-        Create account
+        {t('auth.register.title')}
       </Typography>
       <Stack spacing={2} component="form" onSubmit={onSubmit}>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
-          label="Full name"
+          label={t('auth.register.fullName')}
           required
           fullWidth
           value={form.full_name}
           onChange={(e) => setForm({ ...form, full_name: e.target.value })}
         />
         <TextField
-          label="Email"
+          label={t('auth.register.email')}
           type="email"
           required
           fullWidth
@@ -75,33 +77,33 @@ export default function Register() {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
         <TextField
-          label="Password"
+          label={t('auth.register.password')}
           type="password"
           required
           fullWidth
-          helperText="Min 8 characters"
+          helperText={t('auth.register.passwordHelper')}
           value={form.password}
           onChange={(e) => setForm({ ...form, password: e.target.value })}
         />
         <TextField
-          label="Phone"
+          label={t('auth.register.phone')}
           fullWidth
           value={form.phone}
           onChange={(e) => setForm({ ...form, phone: e.target.value })}
         />
         <TextField
           select
-          label="Role"
+          label={t('auth.register.role')}
           fullWidth
           value={form.role}
           onChange={(e) => setForm({ ...form, role: e.target.value })}
         >
-          <MenuItem value="patient">Patient</MenuItem>
-          <MenuItem value="doctor">Doctor</MenuItem>
+          <MenuItem value="patient">{t('roles.patient')}</MenuItem>
+          <MenuItem value="doctor">{t('roles.doctor')}</MenuItem>
         </TextField>
         {form.role === 'doctor' && (
           <TextField
-            label="Specialty"
+            label={t('auth.register.specialty')}
             required
             fullWidth
             value={form.specialty}
@@ -109,10 +111,10 @@ export default function Register() {
           />
         )}
         <Button type="submit" variant="contained" disabled={loading}>
-          {loading ? 'Creating…' : 'Register'}
+          {loading ? t('auth.register.submitting') : t('auth.register.submit')}
         </Button>
         <Button component={RouterLink} to="/login">
-          Back to login
+          {t('auth.register.backLogin')}
         </Button>
       </Stack>
     </Paper>

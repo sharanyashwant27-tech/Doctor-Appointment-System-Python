@@ -1,5 +1,5 @@
 import DashboardLayout from './DashboardLayout';
 
 export default function AdminLayout() {
-  return <DashboardLayout title="Admin" />;
+  return <DashboardLayout titleKey="roles.admin" />;
 }

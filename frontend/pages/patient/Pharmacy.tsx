@@ -1,6 +1,8 @@
 import { Alert, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PharmacyOrder, MedicalRecord, pharmacyApi, recordsApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 function errMsg(e: unknown, fallback: string) {
   const ax = e as { response?: { data?: { message?: string; detail?: string } } };
@@ -8,6 +10,7 @@ function errMsg(e: unknown, fallback: string) {
 }
 
 export default function PatientPharmacy() {
+  const { t } = useTranslation();
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [orders, setOrders] = useState<PharmacyOrder[]>([]);
   const [msg, setMsg] = useState('');
@@ -19,8 +22,8 @@ export default function PatientPharmacy() {
   }
 
   useEffect(() => {
-    reload().catch(() => setErr('Failed to load pharmacy'));
-  }, []);
+    reload().catch(() => setErr(t('patient.pharmacy.loadFailed')));
+  }, [t]);
 
   const prescriptions = records.flatMap((r) =>
     (r.prescriptions || []).map((p) => ({
@@ -32,10 +35,8 @@ export default function PatientPharmacy() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Pharmacy</Typography>
-      <Typography color="text.secondary">
-        Request fulfillment for your prescriptions and track pharmacy orders.
-      </Typography>
+      <Typography variant="h4">{t('patient.pharmacy.title')}</Typography>
+      <Typography color="text.secondary">{t('patient.pharmacy.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -47,19 +48,20 @@ export default function PatientPharmacy() {
         </Alert>
       )}
 
-      <Typography variant="h6">My prescriptions</Typography>
+      <Typography variant="h6">{t('patient.pharmacy.myRx')}</Typography>
       {prescriptions.length === 0 && (
-        <Alert severity="info">No prescriptions yet. They appear after a completed visit.</Alert>
+        <Alert severity="info">{t('patient.pharmacy.noRx')}</Alert>
       )}
       {prescriptions.map((p) => (
         <Card key={p.id}>
           <CardContent>
             <Typography fontWeight={600}>
-              Prescription #{p.id}
+              {t('patient.pharmacy.rxTitle', { id: p.id })}
               {p.doctor_name ? ` · ${p.doctor_name}` : ''}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {p.diagnosis || 'Clinical Rx'} · {(p.medicines || []).map((m) => m.name).filter(Boolean).join(', ') || '—'}
+              {p.diagnosis || t('patient.pharmacy.clinicalRx')} ·{' '}
+              {(p.medicines || []).map((m) => m.name).filter(Boolean).join(', ') || t('common.emDash')}
             </Typography>
             <Button
               size="small"
@@ -70,23 +72,28 @@ export default function PatientPharmacy() {
                   const o = await pharmacyApi.requestOrder(p.id);
                   setMsg(
                     o.status === 'pending'
-                      ? `Fulfillment requested · ${o.order_number}`
-                      : `Order ${o.order_number} · ${o.status}`,
+                      ? t('patient.pharmacy.fulfillmentRequested', { orderNumber: o.order_number })
+                      : t('patient.pharmacy.orderStatus', {
+                          orderNumber: o.order_number,
+                          status: tStatus(t, o.status),
+                        }),
                   );
                   await reload();
                 } catch (e) {
-                  setErr(errMsg(e, 'Request failed'));
+                  setErr(errMsg(e, t('patient.pharmacy.requestFailed')));
                 }
               }}
             >
-              Request pharmacy fulfillment
+              {t('patient.pharmacy.requestFulfillment')}
             </Button>
           </CardContent>
         </Card>
       ))}
 
-      <Typography variant="h6">My pharmacy orders</Typography>
-      {orders.length === 0 && <Typography color="text.secondary">No pharmacy orders yet.</Typography>}
+      <Typography variant="h6">{t('patient.pharmacy.myOrders')}</Typography>
+      {orders.length === 0 && (
+        <Typography color="text.secondary">{t('patient.pharmacy.noOrders')}</Typography>
+      )}
       {orders.map((o) => (
         <Card key={o.id}>
           <CardContent>
@@ -96,12 +103,13 @@ export default function PatientPharmacy() {
               </Typography>
               <Chip
                 size="small"
-                label={o.status}
+                label={tStatus(t, o.status)}
                 color={o.status === 'dispensed' ? 'success' : o.status === 'pending' ? 'warning' : 'default'}
               />
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              {o.items.map((it) => `${it.medicine_name}×${it.qty}`).join(', ') || 'Awaiting pharmacy matching'}
+              {o.items.map((it) => `${it.medicine_name}×${it.qty}`).join(', ') ||
+                t('patient.pharmacy.awaitingMatch')}
             </Typography>
           </CardContent>
         </Card>

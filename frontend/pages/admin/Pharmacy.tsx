@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   PharmacyMedicine,
   PharmacyOrder,
@@ -26,6 +27,7 @@ import {
   pharmacyApi,
   recordsApi,
 } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 function errMsg(e: unknown, fallback: string) {
   const ax = e as { response?: { data?: { message?: string; detail?: string } } };
@@ -37,7 +39,10 @@ function Panel({ value, index, children }: { value: number; index: number; child
   return <Box sx={{ pt: 2 }}>{children}</Box>;
 }
 
+type StatKind = 'medicines' | 'low' | 'pending' | 'sales' | 'orders' | 'expiring';
+
 export default function AdminPharmacy() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState(0);
   const [inventoryFilter, setInventoryFilter] = useState<'all' | 'low' | 'expiring'>('all');
   const [ordersFilter, setOrdersFilter] = useState<'all' | 'pending' | 'today'>('all');
@@ -86,7 +91,7 @@ export default function AdminPharmacy() {
   }, [q, purchaseMedId, cartMedId]);
 
   useEffect(() => {
-    reload().catch((e) => setErr(errMsg(e, 'Failed to load pharmacy')));
+    reload().catch((e) => setErr(errMsg(e, t('admin.pharmacy.loadFailed'))));
   }, []);
 
   const lowStock = useMemo(() => meds.filter((m) => m.low_stock), [meds]);
@@ -115,26 +120,26 @@ export default function AdminPharmacy() {
     return orders;
   }, [orders, ordersFilter]);
 
-  function goToCard(kind: string) {
+  function goToCard(kind: StatKind) {
     switch (kind) {
-      case 'Medicines':
+      case 'medicines':
         setInventoryFilter('all');
         setTab(0);
         break;
-      case 'Low stock':
+      case 'low':
         setInventoryFilter('low');
         setTab(0);
         break;
-      case 'Pending orders':
+      case 'pending':
         setOrdersFilter('pending');
         setTab(2);
         break;
-      case "Today's sales":
-      case "Today's orders":
+      case 'sales':
+      case 'orders':
         setOrdersFilter('today');
         setTab(2);
         break;
-      case 'Expiring soon':
+      case 'expiring':
         setInventoryFilter('expiring');
         setTab(0);
         break;
@@ -143,12 +148,21 @@ export default function AdminPharmacy() {
     }
   }
 
+  const statCards: Array<{ kind: StatKind; label: string; value: string | number }> = stats
+    ? [
+        { kind: 'medicines', label: t('admin.pharmacy.medicines'), value: stats.medicines_count },
+        { kind: 'low', label: t('admin.pharmacy.lowStock'), value: stats.low_stock_count },
+        { kind: 'pending', label: t('admin.pharmacy.pendingOrders'), value: stats.pending_orders },
+        { kind: 'sales', label: t('admin.pharmacy.todaySales'), value: `₹${stats.today_sales}` },
+        { kind: 'orders', label: t('admin.pharmacy.todayOrders'), value: stats.today_orders },
+        { kind: 'expiring', label: t('admin.pharmacy.expiringSoon'), value: stats.expiring_soon },
+      ]
+    : [];
+
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Pharmacy management</Typography>
-      <Typography color="text.secondary">
-        Inventory, suppliers, prescription dispense, and walk-in POS. Click a card to open its section.
-      </Typography>
+      <Typography variant="h4">{t('admin.pharmacy.title')}</Typography>
+      <Typography color="text.secondary">{t('admin.pharmacy.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -162,17 +176,10 @@ export default function AdminPharmacy() {
 
       {stats && (
         <Grid container spacing={2}>
-          {[
-            ['Medicines', stats.medicines_count],
-            ['Low stock', stats.low_stock_count],
-            ['Pending orders', stats.pending_orders],
-            ["Today's sales", `₹${stats.today_sales}`],
-            ["Today's orders", stats.today_orders],
-            ['Expiring soon', stats.expiring_soon],
-          ].map(([label, value]) => (
-            <Grid item xs={6} sm={4} md={2} key={String(label)}>
+          {statCards.map(({ kind, label, value }) => (
+            <Grid item xs={6} sm={4} md={2} key={kind}>
               <Card
-                onClick={() => goToCard(String(label))}
+                onClick={() => goToCard(kind)}
                 sx={{
                   cursor: 'pointer',
                   transition: 'box-shadow 0.15s, transform 0.15s',
@@ -197,76 +204,88 @@ export default function AdminPharmacy() {
         <Alert
           severity="warning"
           action={
-            <Button color="inherit" size="small" onClick={() => goToCard('Low stock')}>
-              View
+            <Button color="inherit" size="small" onClick={() => goToCard('low')}>
+              {t('admin.pharmacy.view')}
             </Button>
           }
         >
-          Low stock: {lowStock.map((m) => `${m.name} (${m.stock_qty})`).join(', ')}
+          {t('admin.pharmacy.lowStockAlert', {
+            items: lowStock.map((m) => `${m.name} (${m.stock_qty})`).join(', '),
+          })}
         </Alert>
       )}
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" allowScrollButtonsMobile>
-        <Tab label="Inventory" />
-        <Tab label="Suppliers" />
-        <Tab label="Orders / Dispense" />
-        <Tab label="Walk-in POS" />
+        <Tab label={t('admin.pharmacy.tabInventory')} />
+        <Tab label={t('admin.pharmacy.tabSuppliers')} />
+        <Tab label={t('admin.pharmacy.tabOrders')} />
+        <Tab label={t('admin.pharmacy.tabPos')} />
       </Tabs>
 
       <Panel value={tab} index={0}>
         <Stack spacing={2}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-            <TextField size="small" label="Search" value={q} onChange={(e) => setQ(e.target.value)} />
+            <TextField
+              size="small"
+              label={t('admin.pharmacy.search')}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
             <Button
               variant="outlined"
-              onClick={() => reload().catch((e) => setErr(errMsg(e, 'Refresh failed')))}
+              onClick={() => reload().catch((e) => setErr(errMsg(e, t('admin.pharmacy.refreshFailed'))))}
             >
-              Search / refresh
+              {t('admin.pharmacy.searchRefresh')}
             </Button>
             <TextField
               select
               size="small"
-              label="Filter"
+              label={t('admin.pharmacy.filter')}
               value={inventoryFilter}
               onChange={(e) => setInventoryFilter(e.target.value as 'all' | 'low' | 'expiring')}
               sx={{ minWidth: 160 }}
             >
-              <MenuItem value="all">All medicines</MenuItem>
-              <MenuItem value="low">Low stock</MenuItem>
-              <MenuItem value="expiring">Expiring soon</MenuItem>
+              <MenuItem value="all">{t('admin.pharmacy.filterAllMeds')}</MenuItem>
+              <MenuItem value="low">{t('admin.pharmacy.filterLowStock')}</MenuItem>
+              <MenuItem value="expiring">{t('admin.pharmacy.filterExpiring')}</MenuItem>
             </TextField>
           </Stack>
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Add medicine
+                {t('admin.pharmacy.addMedicine')}
               </Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} flexWrap="wrap" useFlexGap>
-                <TextField size="small" label="SKU" value={sku} onChange={(e) => setSku(e.target.value)} />
-                <TextField size="small" label="Name" value={medName} onChange={(e) => setMedName(e.target.value)} />
-                <TextField size="small" label="MRP" value={mrp} onChange={(e) => setMrp(e.target.value)} />
+                <TextField size="small" label={t('admin.pharmacy.sku')} value={sku} onChange={(e) => setSku(e.target.value)} />
                 <TextField
                   size="small"
-                  label="Initial stock"
+                  label={t('admin.pharmacy.name')}
+                  value={medName}
+                  onChange={(e) => setMedName(e.target.value)}
+                />
+                <TextField size="small" label={t('admin.pharmacy.mrp')} value={mrp} onChange={(e) => setMrp(e.target.value)} />
+                <TextField
+                  size="small"
+                  label={t('admin.pharmacy.initialStock')}
                   value={stockQty}
                   onChange={(e) => setStockQty(e.target.value)}
                 />
                 <TextField
                   size="small"
-                  label="Reorder level"
+                  label={t('admin.pharmacy.reorderLevel')}
                   value={reorder}
                   onChange={(e) => setReorder(e.target.value)}
                 />
                 <TextField
                   select
                   size="small"
-                  label="Needs Rx"
+                  label={t('admin.pharmacy.needsRx')}
                   value={needsRx ? 'yes' : 'no'}
                   onChange={(e) => setNeedsRx(e.target.value === 'yes')}
                   sx={{ minWidth: 120 }}
                 >
-                  <MenuItem value="no">No</MenuItem>
-                  <MenuItem value="yes">Yes</MenuItem>
+                  <MenuItem value="no">{t('common.no')}</MenuItem>
+                  <MenuItem value="yes">{t('common.yes')}</MenuItem>
                 </TextField>
                 <Button
                   variant="contained"
@@ -282,14 +301,14 @@ export default function AdminPharmacy() {
                       });
                       setSku('');
                       setMedName('');
-                      setMsg('Medicine added');
+                      setMsg(t('admin.pharmacy.medicineAdded'));
                       await reload();
                     } catch (e) {
-                      setErr(errMsg(e, 'Create failed'));
+                      setErr(errMsg(e, t('admin.pharmacy.createFailed')));
                     }
                   }}
                 >
-                  Add
+                  {t('admin.pharmacy.add')}
                 </Button>
               </Stack>
             </CardContent>
@@ -298,26 +317,26 @@ export default function AdminPharmacy() {
           <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Receive purchase stock
+                {t('admin.pharmacy.receiveStock')}
               </Typography>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 <TextField
                   select
                   size="small"
-                  label="Medicine"
+                  label={t('admin.pharmacy.medicine')}
                   value={purchaseMedId}
                   onChange={(e) => setPurchaseMedId(Number(e.target.value))}
                   sx={{ minWidth: 220 }}
                 >
                   {meds.map((m) => (
                     <MenuItem key={m.id} value={m.id}>
-                      {m.name} (stock {m.stock_qty})
+                      {t('admin.pharmacy.medicineStockOption', { name: m.name, qty: m.stock_qty })}
                     </MenuItem>
                   ))}
                 </TextField>
                 <TextField
                   size="small"
-                  label="Qty"
+                  label={t('admin.pharmacy.qty')}
                   value={purchaseQty}
                   onChange={(e) => setPurchaseQty(e.target.value)}
                 />
@@ -330,14 +349,14 @@ export default function AdminPharmacy() {
                         medicine_id: Number(purchaseMedId),
                         qty: Number(purchaseQty),
                       });
-                      setMsg('Stock received');
+                      setMsg(t('admin.pharmacy.stockReceived'));
                       await reload();
                     } catch (e) {
-                      setErr(errMsg(e, 'Purchase failed'));
+                      setErr(errMsg(e, t('admin.pharmacy.purchaseFailed')));
                     }
                   }}
                 >
-                  Receive
+                  {t('admin.pharmacy.receive')}
                 </Button>
               </Stack>
             </CardContent>
@@ -346,12 +365,12 @@ export default function AdminPharmacy() {
           <Table size="small">
             <TableHead>
               <TableRow>
-                <TableCell>SKU</TableCell>
-                <TableCell>Name</TableCell>
-                <TableCell>Stock</TableCell>
-                <TableCell>MRP</TableCell>
-                <TableCell>Expiry</TableCell>
-                <TableCell>Flags</TableCell>
+                <TableCell>{t('admin.pharmacy.colSku')}</TableCell>
+                <TableCell>{t('admin.pharmacy.colName')}</TableCell>
+                <TableCell>{t('admin.pharmacy.colStock')}</TableCell>
+                <TableCell>{t('admin.pharmacy.colMrp')}</TableCell>
+                <TableCell>{t('admin.pharmacy.colExpiry')}</TableCell>
+                <TableCell>{t('admin.pharmacy.colFlags')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -364,17 +383,19 @@ export default function AdminPharmacy() {
                   </TableCell>
                   <TableCell>{m.stock_qty}</TableCell>
                   <TableCell>₹{m.mrp}</TableCell>
-                  <TableCell>{m.expiry_date || '—'}</TableCell>
+                  <TableCell>{m.expiry_date || t('common.emDash')}</TableCell>
                   <TableCell>
-                    {m.low_stock && <Chip size="small" color="warning" label="Low" sx={{ mr: 0.5 }} />}
-                    {m.requires_prescription && <Chip size="small" label="Rx" />}
+                    {m.low_stock && (
+                      <Chip size="small" color="warning" label={tStatus(t, 'low')} sx={{ mr: 0.5 }} />
+                    )}
+                    {m.requires_prescription && <Chip size="small" label={tStatus(t, 'rx')} />}
                   </TableCell>
                 </TableRow>
               ))}
               {visibleMeds.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6}>
-                    <Typography color="text.secondary">No medicines match this filter.</Typography>
+                    <Typography color="text.secondary">{t('admin.pharmacy.noMedsFilter')}</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -386,8 +407,18 @@ export default function AdminPharmacy() {
       <Panel value={tab} index={1}>
         <Stack spacing={2} maxWidth={640}>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <TextField size="small" label="Supplier name" value={supName} onChange={(e) => setSupName(e.target.value)} />
-            <TextField size="small" label="Phone" value={supPhone} onChange={(e) => setSupPhone(e.target.value)} />
+            <TextField
+              size="small"
+              label={t('admin.pharmacy.supplierName')}
+              value={supName}
+              onChange={(e) => setSupName(e.target.value)}
+            />
+            <TextField
+              size="small"
+              label={t('admin.pharmacy.phone')}
+              value={supPhone}
+              onChange={(e) => setSupPhone(e.target.value)}
+            />
             <Button
               variant="contained"
               onClick={async () => {
@@ -395,14 +426,14 @@ export default function AdminPharmacy() {
                   await pharmacyApi.createSupplier({ name: supName, phone: supPhone });
                   setSupName('');
                   setSupPhone('');
-                  setMsg('Supplier added');
+                  setMsg(t('admin.pharmacy.supplierAdded'));
                   await reload();
                 } catch (e) {
-                  setErr(errMsg(e, 'Supplier failed'));
+                  setErr(errMsg(e, t('admin.pharmacy.supplierFailed')));
                 }
               }}
             >
-              Add supplier
+              {t('admin.pharmacy.addSupplier')}
             </Button>
           </Stack>
           {suppliers.map((s) => (
@@ -410,7 +441,8 @@ export default function AdminPharmacy() {
               <CardContent>
                 <Typography fontWeight={600}>{String(s.name)}</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {String(s.contact || '—')} · {String(s.phone || '—')} · {String(s.email || '')}
+                  {String(s.contact || t('common.emDash'))} · {String(s.phone || t('common.emDash'))} ·{' '}
+                  {String(s.email || '')}
                 </Typography>
               </CardContent>
             </Card>
@@ -423,7 +455,7 @@ export default function AdminPharmacy() {
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
             <TextField
               size="small"
-              label="Prescription id"
+              label={t('admin.pharmacy.prescriptionId')}
               value={rxId}
               onChange={(e) => setRxId(e.target.value)}
             />
@@ -433,11 +465,11 @@ export default function AdminPharmacy() {
                 try {
                   setRxMatches(await pharmacyApi.matchRx(Number(rxId)));
                 } catch (e) {
-                  setErr(errMsg(e, 'Match failed'));
+                  setErr(errMsg(e, t('admin.pharmacy.matchFailed')));
                 }
               }}
             >
-              Match catalog
+              {t('admin.pharmacy.matchCatalog')}
             </Button>
             <Button
               variant="contained"
@@ -452,7 +484,7 @@ export default function AdminPharmacy() {
                     })
                     .filter(Boolean) as Array<{ medicine_id: number; qty: number }>;
                   if (!items.length) {
-                    setErr('No catalog matches to dispense');
+                    setErr(t('admin.pharmacy.noCatalogMatches'));
                     return;
                   }
                   const o = await pharmacyApi.dispenseFromRx({
@@ -460,15 +492,20 @@ export default function AdminPharmacy() {
                     items,
                     mark_paid: true,
                   });
-                  setMsg(`Dispensed ${o.order_number} · ₹${o.total_amount}`);
+                  setMsg(
+                    t('admin.pharmacy.dispensedOrder', {
+                      orderNumber: o.order_number,
+                      amount: o.total_amount,
+                    }),
+                  );
                   setRxMatches([]);
                   await reload();
                 } catch (e) {
-                  setErr(errMsg(e, 'Dispense failed'));
+                  setErr(errMsg(e, t('admin.pharmacy.dispenseFailed')));
                 }
               }}
             >
-              Dispense matched lines
+              {t('admin.pharmacy.dispenseMatched')}
             </Button>
             <Button
               size="small"
@@ -478,40 +515,43 @@ export default function AdminPharmacy() {
                   const rx = recs.flatMap((r) => r.prescriptions || []);
                   if (rx[0]) {
                     setRxId(String(rx[0].id));
-                    setMsg(`Loaded prescription #${rx[0].id}`);
-                  } else setErr('No prescriptions in records');
+                    setMsg(t('admin.pharmacy.loadedRx', { id: rx[0].id }));
+                  } else setErr(t('admin.pharmacy.noRxInRecords'));
                 } catch (e) {
-                  setErr(errMsg(e, 'Could not load records'));
+                  setErr(errMsg(e, t('admin.pharmacy.loadRecordsFailed')));
                 }
               }}
             >
-              Load sample Rx id
+              {t('admin.pharmacy.loadSampleRx')}
             </Button>
           </Stack>
           {rxMatches.map((row, i) => (
             <Typography key={i} variant="body2">
-              Rx: {String(row.rx_name)} {row.rx_dose ? `· ${String(row.rx_dose)}` : ''} →{' '}
-              {(row.matched_medicine as PharmacyMedicine | null)?.name || 'no match'}
+              {t('admin.pharmacy.rxMatchLine', {
+                name: String(row.rx_name),
+                dose: row.rx_dose ? String(row.rx_dose) : '',
+                matched: (row.matched_medicine as PharmacyMedicine | null)?.name || t('admin.pharmacy.noMatch'),
+              })}
             </Typography>
           ))}
 
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Typography variant="h6">Orders</Typography>
+            <Typography variant="h6">{t('admin.pharmacy.orders')}</Typography>
             <TextField
               select
               size="small"
-              label="Filter"
+              label={t('admin.pharmacy.filter')}
               value={ordersFilter}
               onChange={(e) => setOrdersFilter(e.target.value as 'all' | 'pending' | 'today')}
               sx={{ minWidth: 160 }}
             >
-              <MenuItem value="all">All orders</MenuItem>
-              <MenuItem value="pending">Pending / ready</MenuItem>
-              <MenuItem value="today">Today</MenuItem>
+              <MenuItem value="all">{t('admin.pharmacy.filterAllOrders')}</MenuItem>
+              <MenuItem value="pending">{t('admin.pharmacy.filterPendingReady')}</MenuItem>
+              <MenuItem value="today">{t('admin.pharmacy.filterToday')}</MenuItem>
             </TextField>
           </Stack>
           {visibleOrders.length === 0 && (
-            <Typography color="text.secondary">No orders for this filter.</Typography>
+            <Typography color="text.secondary">{t('admin.pharmacy.noOrdersFilter')}</Typography>
           )}
           {visibleOrders.map((o) => (
             <Card key={o.id}>
@@ -520,11 +560,15 @@ export default function AdminPharmacy() {
                   <Typography fontWeight={600}>
                     {o.order_number} · ₹{o.total_amount}
                   </Typography>
-                  <Chip size="small" label={o.status} color={o.status === 'pending' ? 'warning' : 'success'} />
-                  <Chip size="small" variant="outlined" label={o.payment_status} />
+                  <Chip
+                    size="small"
+                    label={tStatus(t, o.status)}
+                    color={o.status === 'pending' ? 'warning' : 'success'}
+                  />
+                  <Chip size="small" variant="outlined" label={tStatus(t, o.payment_status)} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary">
-                  {o.patient_name || 'Walk-in'} · Rx #{o.prescription_id || '—'} ·{' '}
+                  {o.patient_name || t('admin.pharmacy.walkIn')} · Rx #{o.prescription_id || t('common.emDash')} ·{' '}
                   {o.items.map((it) => `${it.medicine_name}×${it.qty}`).join(', ')}
                 </Typography>
                 {['pending', 'ready'].includes(o.status) && (
@@ -535,14 +579,14 @@ export default function AdminPharmacy() {
                     onClick={async () => {
                       try {
                         await pharmacyApi.dispenseOrder(o.id);
-                        setMsg(`Order ${o.order_number} dispensed`);
+                        setMsg(t('admin.pharmacy.orderDispensed', { orderNumber: o.order_number }));
                         await reload();
                       } catch (e) {
-                        setErr(errMsg(e, 'Dispense failed'));
+                        setErr(errMsg(e, t('admin.pharmacy.dispenseFailed')));
                       }
                     }}
                   >
-                    Dispense now
+                    {t('admin.pharmacy.dispenseNow')}
                   </Button>
                 )}
               </CardContent>
@@ -557,7 +601,7 @@ export default function AdminPharmacy() {
             <TextField
               select
               size="small"
-              label="Medicine"
+              label={t('admin.pharmacy.medicine')}
               value={cartMedId}
               onChange={(e) => setCartMedId(Number(e.target.value))}
               sx={{ minWidth: 220 }}
@@ -566,11 +610,16 @@ export default function AdminPharmacy() {
                 .filter((m) => !m.requires_prescription)
                 .map((m) => (
                   <MenuItem key={m.id} value={m.id}>
-                    {m.name} · ₹{m.mrp} · stock {m.stock_qty}
+                    {t('admin.pharmacy.posOption', { name: m.name, mrp: m.mrp, qty: m.stock_qty })}
                   </MenuItem>
                 ))}
             </TextField>
-            <TextField size="small" label="Qty" value={cartQty} onChange={(e) => setCartQty(e.target.value)} />
+            <TextField
+              size="small"
+              label={t('admin.pharmacy.qty')}
+              value={cartQty}
+              onChange={(e) => setCartQty(e.target.value)}
+            />
             <Button
               variant="outlined"
               onClick={() => {
@@ -587,21 +636,25 @@ export default function AdminPharmacy() {
                 });
               }}
             >
-              Add to cart
+              {t('admin.pharmacy.addToCart')}
             </Button>
           </Stack>
           <TextField
             size="small"
-            label="Customer name (optional)"
+            label={t('admin.pharmacy.customerName')}
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
           />
           {cart.map((c) => (
             <Typography key={c.medicine_id} variant="body2">
-              {c.name} × {c.qty} = ₹{(c.mrp * c.qty).toFixed(2)}
+              {t('admin.pharmacy.cartLine', {
+                name: c.name,
+                qty: c.qty,
+                total: (c.mrp * c.qty).toFixed(2),
+              })}
             </Typography>
           ))}
-          <Typography fontWeight={700}>Total ₹{cartTotal.toFixed(2)}</Typography>
+          <Typography fontWeight={700}>{t('admin.pharmacy.total', { amount: cartTotal.toFixed(2) })}</Typography>
           <Button
             variant="contained"
             disabled={!cart.length}
@@ -612,16 +665,16 @@ export default function AdminPharmacy() {
                   customer_name: customerName || undefined,
                   mark_paid: true,
                 });
-                setMsg(`Sale ${o.order_number} · ₹${o.total_amount}`);
+                setMsg(t('admin.pharmacy.saleDone', { orderNumber: o.order_number, amount: o.total_amount }));
                 setCart([]);
                 setCustomerName('');
                 await reload();
               } catch (e) {
-                setErr(errMsg(e, 'Sale failed'));
+                setErr(errMsg(e, t('admin.pharmacy.saleFailed')));
               }
             }}
           >
-            Complete UPI / cash sale
+            {t('admin.pharmacy.completeSale')}
           </Button>
         </Stack>
       </Panel>

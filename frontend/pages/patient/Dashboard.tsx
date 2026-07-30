@@ -14,6 +14,7 @@ import {
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Appointment,
   MedicalRecord,
@@ -26,6 +27,7 @@ import {
 } from '@services/endpoints';
 import { useAuthContext } from '@context/AuthContext';
 import UpiPayDialog from '@components/UpiPayDialog';
+import { tStatus } from '@/i18n';
 
 const linkCardSx = {
   height: '100%',
@@ -50,6 +52,7 @@ function StatCard({ label, value, to }: { label: string; value: string | number;
 }
 
 export default function PatientDashboard() {
+  const { t } = useTranslation();
   const { user } = useAuthContext();
   const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -75,8 +78,8 @@ export default function PatientDashboard() {
   }
 
   useEffect(() => {
-    reload().catch(() => setError('Could not load dashboard'));
-  }, []);
+    reload().catch(() => setError(t('patient.dashboard.loadFailed')));
+  }, [t]);
 
   const upcoming = useMemo(
     () =>
@@ -115,9 +118,11 @@ export default function PatientDashboard() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4">Patient dashboard</Typography>
+      <Typography variant="h4">{t('patient.dashboard.title')}</Typography>
       <Typography color="text.secondary">
-        Welcome, {user?.full_name || 'Patient'} · Click any card to open its page
+        {t('patient.dashboard.welcome', {
+          name: user?.full_name || t('patient.dashboard.welcomeFallback'),
+        })}
       </Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
@@ -128,22 +133,22 @@ export default function PatientDashboard() {
 
       <Grid container spacing={2}>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Upcoming appointment" value={upcoming.length} to="/patient/appointments" />
+          <StatCard label={t('patient.dashboard.upcoming')} value={upcoming.length} to="/patient/appointments" />
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Past visits" value={pastVisits.length} to="/patient/appointments" />
+          <StatCard label={t('patient.dashboard.pastVisits')} value={pastVisits.length} to="/patient/appointments" />
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Medical records" value={records.length} to="/patient/records" />
+          <StatCard label={t('patient.dashboard.records')} value={records.length} to="/patient/records" />
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Payments" value={payments.length} to="/patient/payments" />
+          <StatCard label={t('patient.dashboard.payments')} value={payments.length} to="/patient/payments" />
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Prescriptions" value={prescriptions.length} to="/patient/pharmacy" />
+          <StatCard label={t('patient.dashboard.prescriptions')} value={prescriptions.length} to="/patient/pharmacy" />
         </Grid>
         <Grid item xs={6} sm={4} md={2}>
-          <StatCard label="Find doctors" value="Book" to="/patient/doctors" />
+          <StatCard label={t('patient.dashboard.findDoctors')} value={t('patient.dashboard.book')} to="/patient/doctors" />
         </Grid>
       </Grid>
 
@@ -152,24 +157,26 @@ export default function PatientDashboard() {
           <Card sx={linkCardSx} onClick={() => navigate('/patient/appointments')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Upcoming appointment
+                {t('patient.dashboard.upcoming')}
               </Typography>
               {upcoming.length === 0 && (
-                <Typography color="text.secondary">No upcoming visits. Book a doctor.</Typography>
+                <Typography color="text.secondary">{t('patient.dashboard.noUpcoming')}</Typography>
               )}
               {upcoming.slice(0, 1).map((a) => (
                 <Stack key={a.id} spacing={1}>
                   <Typography fontWeight={700}>
-                    {a.doctor_name || `Doctor #${a.doctor_id}`} · {a.specialty || ''}
+                    {a.doctor_name || t('patient.dashboard.doctorFallback', { id: a.doctor_id })} · {a.specialty || ''}
                   </Typography>
                   <Typography>{dayjs(a.scheduled_at).format('dddd, D MMM YYYY · HH:mm')}</Typography>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip size="small" label={a.status} sx={{ width: 'fit-content' }} />
+                    <Chip size="small" label={tStatus(t, a.status)} sx={{ width: 'fit-content' }} />
                     <Chip
                       size="small"
                       variant="outlined"
                       color={(a.payment_status || 'unpaid') === 'paid' ? 'success' : 'warning'}
-                      label={`Payment: ${a.payment_status || 'unpaid'}`}
+                      label={t('status.paymentPrefix', {
+                        status: tStatus(t, a.payment_status || 'unpaid'),
+                      })}
                     />
                   </Stack>
                   {a.meeting_url && (
@@ -181,7 +188,7 @@ export default function PatientDashboard() {
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      Join online consult
+                      {t('patient.dashboard.joinOnline')}
                     </Typography>
                   )}
                   {['approved', 'confirmed', 'rescheduled'].includes(a.status) &&
@@ -195,7 +202,7 @@ export default function PatientDashboard() {
                           try {
                             const p = await paymentsApi.checkout(a.id);
                             if (p.status === 'success') {
-                              setMsg('Already paid');
+                              setMsg(t('patient.dashboard.alreadyPaid'));
                               await reload();
                               return;
                             }
@@ -203,18 +210,18 @@ export default function PatientDashboard() {
                             setPayOpen(true);
                           } catch (err) {
                             const ax = err as { response?: { data?: { message?: string } } };
-                            setError(ax.response?.data?.message || 'Could not start UPI payment');
+                            setError(ax.response?.data?.message || t('patient.dashboard.upiStartFailed'));
                           }
                         }}
                       >
-                        Pay with UPI
+                        {t('patient.dashboard.payUpi')}
                       </Button>
                     )}
                 </Stack>
               ))}
               {upcoming.length > 1 && (
                 <Typography variant="body2" sx={{ mt: 2 }} color="text.secondary">
-                  +{upcoming.length - 1} more upcoming
+                  {t('patient.dashboard.moreUpcoming', { count: upcoming.length - 1 })}
                 </Typography>
               )}
             </CardContent>
@@ -226,10 +233,10 @@ export default function PatientDashboard() {
           >
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Past visits
+                {t('patient.dashboard.pastVisits')}
               </Typography>
               {pastVisits.length === 0 && (
-                <Typography color="text.secondary">No past visits yet.</Typography>
+                <Typography color="text.secondary">{t('patient.dashboard.noPast')}</Typography>
               )}
               {pastVisits.map((a) => (
                 <Stack
@@ -241,9 +248,10 @@ export default function PatientDashboard() {
                   borderColor="divider"
                 >
                   <Typography variant="body2">
-                    {a.doctor_name || `Doctor #${a.doctor_id}`} · {dayjs(a.scheduled_at).format('D MMM YYYY')}
+                    {a.doctor_name || t('patient.dashboard.doctorFallback', { id: a.doctor_id })} ·{' '}
+                    {dayjs(a.scheduled_at).format('D MMM YYYY')}
                   </Typography>
-                  <Chip size="small" label={a.status} />
+                  <Chip size="small" label={tStatus(t, a.status)} />
                 </Stack>
               ))}
             </CardContent>
@@ -254,21 +262,24 @@ export default function PatientDashboard() {
           <Card sx={linkCardSx} onClick={() => navigate('/patient/records')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Medical records & prescriptions
+                {t('patient.dashboard.recordsTitle')}
               </Typography>
-              {records.length === 0 && <Typography color="text.secondary">No records yet.</Typography>}
+              {records.length === 0 && (
+                <Typography color="text.secondary">{t('patient.dashboard.noRecords')}</Typography>
+              )}
               {records.slice(0, 4).map((r) => (
                 <Stack key={r.id} sx={{ py: 1 }} borderBottom={1} borderColor="divider">
                   <Typography fontWeight={600}>
-                    {r.diagnosis || 'Clinical note'} · {r.doctor_name || `Doctor #${r.doctor_id}`}
+                    {r.diagnosis || t('patient.dashboard.clinicalNote')} ·{' '}
+                    {r.doctor_name || t('patient.dashboard.doctorFallback', { id: r.doctor_id })}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    {(r.prescriptions || []).length} prescription(s)
+                    {t('patient.dashboard.prescriptionCount', { count: (r.prescriptions || []).length })}
                   </Typography>
                 </Stack>
               ))}
               <Typography variant="body2" color="primary" sx={{ mt: 1, display: 'inline-block' }}>
-                View all records →
+                {t('patient.dashboard.viewAllRecords')}
               </Typography>
             </CardContent>
           </Card>
@@ -276,9 +287,11 @@ export default function PatientDashboard() {
           <Card sx={{ ...linkCardSx, mt: 2 }} onClick={() => navigate('/patient/payments')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Payments
+                {t('patient.dashboard.payments')}
               </Typography>
-              {payments.length === 0 && <Typography color="text.secondary">No payments yet.</Typography>}
+              {payments.length === 0 && (
+                <Typography color="text.secondary">{t('patient.dashboard.noPayments')}</Typography>
+              )}
               {payments.slice(0, 4).map((p) => (
                 <Stack
                   key={p.id}
@@ -294,7 +307,7 @@ export default function PatientDashboard() {
                   <Stack direction="row" spacing={1} alignItems="center">
                     <Chip
                       size="small"
-                      label={p.status}
+                      label={tStatus(t, p.status)}
                       color={p.status === 'success' ? 'success' : 'warning'}
                     />
                     {p.status === 'pending' && (
@@ -306,14 +319,14 @@ export default function PatientDashboard() {
                           setPayOpen(true);
                         }}
                       >
-                        Pay UPI
+                        {t('patient.dashboard.payUpiShort')}
                       </Button>
                     )}
                   </Stack>
                 </Stack>
               ))}
               <Typography variant="body2" color="primary">
-                Payment history →
+                {t('patient.dashboard.paymentHistory')}
               </Typography>
             </CardContent>
           </Card>
@@ -321,8 +334,10 @@ export default function PatientDashboard() {
           <Card sx={{ ...linkCardSx, mt: 2 }} onClick={() => navigate('/notifications')}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="h6">Notifications</Typography>
-                {unread > 0 && <Chip size="small" color="primary" label={`${unread} unread`} />}
+                <Typography variant="h6">{t('patient.dashboard.notificationsTitle')}</Typography>
+                {unread > 0 && (
+                  <Chip size="small" color="primary" label={t('patient.dashboard.unread', { count: unread })} />
+                )}
               </Stack>
               <List dense>
                 {notifications.slice(0, 5).map((n) => (
@@ -336,10 +351,10 @@ export default function PatientDashboard() {
                 ))}
               </List>
               {notifications.length === 0 && (
-                <Typography color="text.secondary">No notifications.</Typography>
+                <Typography color="text.secondary">{t('patient.dashboard.noNotifications')}</Typography>
               )}
               <Typography variant="body2" color="primary">
-                Open inbox →
+                {t('patient.dashboard.openInbox')}
               </Typography>
             </CardContent>
           </Card>
@@ -350,9 +365,9 @@ export default function PatientDashboard() {
             sx={{ ...linkCardSx, display: 'block', mt: 2 }}
           >
             <CardContent>
-              <Typography variant="h6">Advanced care tools</Typography>
+              <Typography variant="h6">{t('patient.dashboard.advancedTitle')}</Typography>
               <Typography variant="body2" color="text.secondary">
-                Video, chat, OCR, reminders, calendar
+                {t('patient.dashboard.advancedHint')}
               </Typography>
             </CardContent>
           </Card>
@@ -367,7 +382,11 @@ export default function PatientDashboard() {
           setActivePayment(null);
         }}
         onPaid={async (paid) => {
-          setMsg(`UPI payment successful · ${paid.invoice_number || `#${paid.id}`}`);
+          setMsg(
+            t('patient.dashboard.upiSuccess', {
+              invoice: paid.invoice_number || `#${paid.id}`,
+            }),
+          );
           await reload();
         }}
       />

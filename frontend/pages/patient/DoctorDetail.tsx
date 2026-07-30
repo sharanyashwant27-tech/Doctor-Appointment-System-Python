@@ -2,9 +2,12 @@ import { Alert, Button, Stack, TextField, Typography } from '@mui/material';
 import dayjs from 'dayjs';
 import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Availability, Doctor, appointmentsApi, doctorsApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 export default function DoctorDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const doctorId = Number(id);
@@ -17,9 +20,9 @@ export default function DoctorDetail() {
 
   useEffect(() => {
     if (!doctorId) return;
-    doctorsApi.get(doctorId).then(setDoctor).catch(() => setError('Doctor not found'));
+    doctorsApi.get(doctorId).then(setDoctor).catch(() => setError(t('patient.doctorDetail.notFound')));
     doctorsApi.availability(doctorId).then(setSlots).catch(() => undefined);
-  }, [doctorId]);
+  }, [doctorId, t]);
 
   async function book(e: FormEvent) {
     e.preventDefault();
@@ -31,14 +34,22 @@ export default function DoctorDetail() {
         scheduled_at: new Date(scheduledAt).toISOString(),
         reason,
       });
-      setMsg(`Booked appointment #${appt.id} (${appt.status})`);
+      setMsg(
+        t('patient.doctorDetail.booked', {
+          id: appt.id,
+          status: tStatus(t, appt.status),
+        }),
+      );
       setTimeout(() => navigate('/patient/appointments'), 800);
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Booking failed');
+      setError(
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          t('patient.doctorDetail.bookingFailed'),
+      );
     }
   }
 
-  if (!doctor && !error) return <Typography>Loading…</Typography>;
+  if (!doctor && !error) return <Typography>{t('patient.doctorDetail.loading')}</Typography>;
 
   return (
     <Stack spacing={2} maxWidth={560}>
@@ -47,27 +58,38 @@ export default function DoctorDetail() {
         {doctor?.specialty} · {doctor?.city} · ₹{doctor?.consultation_fee}
       </Typography>
       <Typography color="text.secondary">{doctor?.bio}</Typography>
-      <Typography variant="subtitle1">Weekly availability</Typography>
-      {slots.length === 0 && <Typography variant="body2">No published slots.</Typography>}
+      <Typography variant="subtitle1">{t('patient.doctorDetail.weeklyAvailability')}</Typography>
+      {slots.length === 0 && <Typography variant="body2">{t('patient.doctorDetail.noSlots')}</Typography>}
       {slots.map((s) => (
         <Typography key={s.id} variant="body2">
-          Day {s.day_of_week ?? 'date'} · {s.start_time}–{s.end_time} ({s.slot_minutes} min)
+          {t('patient.doctorDetail.slotLine', {
+            day: s.day_of_week ?? t('day.date'),
+            start: s.start_time,
+            end: s.end_time,
+            minutes: s.slot_minutes,
+          })}
         </Typography>
       ))}
       <Stack component="form" spacing={2} onSubmit={book}>
         {error && <Alert severity="error">{error}</Alert>}
         {msg && <Alert severity="success">{msg}</Alert>}
         <TextField
-          label="Date & time"
+          label={t('patient.doctorDetail.dateTime')}
           type="datetime-local"
           InputLabelProps={{ shrink: true }}
           value={scheduledAt}
           onChange={(e) => setScheduledAt(e.target.value)}
           required
         />
-        <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} multiline minRows={2} />
+        <TextField
+          label={t('patient.doctorDetail.reason')}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          multiline
+          minRows={2}
+        />
         <Button type="submit" variant="contained">
-          Request appointment
+          {t('patient.doctorDetail.request')}
         </Button>
       </Stack>
     </Stack>

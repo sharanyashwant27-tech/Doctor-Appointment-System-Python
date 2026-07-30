@@ -15,8 +15,10 @@ import {
 } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { advancedApi, Appointment, appointmentsApi, Doctor, doctorsApi } from '@services/endpoints';
 import { downloadAuthed, qrImageUrl } from '@services/download';
+import { tStatus } from '@/i18n';
 
 function TabPanel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
@@ -29,6 +31,7 @@ function errMsg(e: unknown, fallback: string) {
 }
 
 export default function PatientAdvanced() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState(0);
   const [symptoms, setSymptoms] = useState('chest pain and shortness of breath');
   const [triage, setTriage] = useState<Record<string, unknown> | null>(null);
@@ -89,9 +92,7 @@ export default function PatientAdvanced() {
         setCalendarConnected(Boolean(s.connected));
         if (s.google_calendar_url) setGoogleCalendarUrl(String(s.google_calendar_url));
         setCalendarStatus(
-          s.connected
-            ? 'Google Calendar linked — download .ics and import in Google Calendar'
-            : 'Not connected yet',
+          s.connected ? t('patient.advanced.calendarLinked') : t('patient.advanced.calendarNotConnected'),
         );
       })
       .catch(() => undefined);
@@ -112,12 +113,12 @@ export default function PatientAdvanced() {
     setErr('');
     setBusy(true);
     try {
-      const t = await advancedApi.checkSymptoms(symptoms);
-      setTriage(t);
+      const triageResult = await advancedApi.checkSymptoms(symptoms);
+      setTriage(triageResult);
       setRecs(await advancedApi.recommend({ symptoms, limit: 5 }));
-      setMsg('Symptom check complete — pick a recommended doctor to book');
+      setMsg(t('patient.advanced.symptomComplete'));
     } catch (e) {
-      setErr(errMsg(e, 'Symptom check failed'));
+      setErr(errMsg(e, t('patient.advanced.symptomFailed')));
     } finally {
       setBusy(false);
     }
@@ -133,15 +134,19 @@ export default function PatientAdvanced() {
       const appt = await appointmentsApi.book({
         doctor_id,
         scheduled_at: when,
-        reason: reason || symptoms || 'Advanced tools booking',
+        reason: reason || symptoms || t('patient.advanced.defaultReason'),
         consultation_mode: online ? 'online' : 'in_person',
       });
       await reloadAppts();
       setSelectedApptId(appt.id);
-      setMsg(`Appointment #${appt.id} booked${online ? ' (online video)' : ''}`);
+      setMsg(
+        online
+          ? t('patient.advanced.bookedOnline', { id: appt.id })
+          : t('patient.advanced.booked', { id: appt.id }),
+      );
       return appt;
     } catch (e) {
-      setErr(errMsg(e, 'Booking failed'));
+      setErr(errMsg(e, t('patient.advanced.bookingFailed')));
       return null;
     } finally {
       setBusy(false);
@@ -163,7 +168,7 @@ export default function PatientAdvanced() {
     };
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) {
-      setErr('Speech recognition not supported — paste a transcript and parse it.');
+      setErr(t('patient.advanced.speechUnsupported'));
       return;
     }
     const rec = new SR();
@@ -173,11 +178,11 @@ export default function PatientAdvanced() {
     rec.onresult = (ev) => {
       const text = ev.results[0][0].transcript;
       setVoice(text);
-      advancedApi.voiceParse(text).then(setVoiceResult).catch(() => setErr('Voice parse failed'));
+      advancedApi.voiceParse(text).then(setVoiceResult).catch(() => setErr(t('patient.advanced.voiceParseFailed')));
     };
-    rec.onerror = () => setErr('Voice capture failed — try typing the transcript');
+    rec.onerror = () => setErr(t('patient.advanced.voiceCaptureFailed'));
     rec.start();
-    setMsg('Listening… speak your booking request');
+    setMsg(t('patient.advanced.listening'));
   }
 
   async function confirmVoiceBooking() {
@@ -190,13 +195,13 @@ export default function PatientAdvanced() {
       const recList = await advancedApi.recommend({ symptoms: voice || specialty, limit: 1 });
       const top = recList[0];
       if (!top?.doctor_id) {
-        setErr('No matching doctor found for that specialty');
+        setErr(t('patient.advanced.noMatchingDoctor'));
         return;
       }
-      await bookDoctor(Number(top.doctor_id), when, `Voice booking: ${voice}`, false);
+      await bookDoctor(Number(top.doctor_id), when, t('patient.advanced.voiceBookingReason', { voice }), false);
       setRecs(recList);
     } catch (e) {
-      setErr(errMsg(e, 'Voice booking failed'));
+      setErr(errMsg(e, t('patient.advanced.voiceBookingFailed')));
     } finally {
       setBusy(false);
     }
@@ -204,7 +209,7 @@ export default function PatientAdvanced() {
 
   async function startVideo() {
     if (!selectedApptId) {
-      setErr('Select an appointment first (or book an online consult below)');
+      setErr(t('patient.advanced.selectApptFirst'));
       return;
     }
     setBusy(true);
@@ -212,11 +217,11 @@ export default function PatientAdvanced() {
     try {
       const room = await advancedApi.videoRoom(Number(selectedApptId));
       setVideoUrl(room.meeting_url);
-      setMsg('Video room ready — opening Jitsi');
+      setMsg(t('patient.advanced.videoReady'));
       window.open(room.meeting_url, '_blank', 'noopener,noreferrer');
       await reloadAppts();
     } catch (e) {
-      setErr(errMsg(e, 'Could not start video room'));
+      setErr(errMsg(e, t('patient.advanced.videoFailed')));
     } finally {
       setBusy(false);
     }
@@ -225,19 +230,19 @@ export default function PatientAdvanced() {
   async function bookOnlineAndJoin() {
     const cardiology = doctors.find((d) => /cardio/i.test(d.specialty)) || doctors[0];
     if (!cardiology) {
-      setErr('No doctors available to book');
+      setErr(t('patient.advanced.noDoctors'));
       return;
     }
-    const appt = await bookDoctor(cardiology.id, undefined, 'Online video consult', true);
+    const appt = await bookDoctor(cardiology.id, undefined, t('patient.advanced.onlineConsultReason'), true);
     if (!appt) return;
     setBusy(true);
     try {
       const room = await advancedApi.videoRoom(appt.id);
       setVideoUrl(room.meeting_url);
       window.open(room.meeting_url, '_blank', 'noopener,noreferrer');
-      setMsg('Online appointment booked and video room opened');
+      setMsg(t('patient.advanced.onlineBooked'));
     } catch (e) {
-      setErr(errMsg(e, 'Booked, but video room failed'));
+      setErr(errMsg(e, t('patient.advanced.bookedVideoFailed')));
     } finally {
       setBusy(false);
     }
@@ -245,7 +250,7 @@ export default function PatientAdvanced() {
 
   async function showQr() {
     if (!selectedApptId) {
-      setErr('Select an appointment to show QR');
+      setErr(t('patient.advanced.selectApptQr'));
       return;
     }
     setBusy(true);
@@ -253,9 +258,9 @@ export default function PatientAdvanced() {
     try {
       const qr = await appointmentsApi.qr(Number(selectedApptId));
       setQrPayload(qr);
-      setMsg(`QR ready for appointment #${selectedApptId}`);
+      setMsg(t('patient.advanced.qrReady', { id: selectedApptId }));
     } catch (e) {
-      setErr(errMsg(e, 'QR fetch failed'));
+      setErr(errMsg(e, t('patient.advanced.qrFailed')));
     } finally {
       setBusy(false);
     }
@@ -263,10 +268,8 @@ export default function PatientAdvanced() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Advanced care tools</Typography>
-      <Typography color="text.secondary">
-        Symptom AI, voice booking, live video, chat, OCR, insurance, reminders, ratings, and calendar — all wired to live APIs.
-      </Typography>
+      <Typography variant="h4">{t('patient.advanced.title')}</Typography>
+      <Typography color="text.secondary">{t('patient.advanced.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -279,35 +282,37 @@ export default function PatientAdvanced() {
       )}
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons allowScrollButtonsMobile>
-        <Tab label="Symptom AI" />
-        <Tab label="Voice book" />
-        <Tab label="Assistant" />
-        <Tab label="Chat" />
-        <Tab label="Video / QR" />
-        <Tab label="Reminders" />
-        <Tab label="Insurance" />
-        <Tab label="OCR" />
-        <Tab label="Reviews" />
-        <Tab label="Calendar" />
+        <Tab label={t('patient.advanced.tab.symptomAi')} />
+        <Tab label={t('patient.advanced.tab.voiceBook')} />
+        <Tab label={t('patient.advanced.tab.assistant')} />
+        <Tab label={t('patient.advanced.tab.chat')} />
+        <Tab label={t('patient.advanced.tab.videoQr')} />
+        <Tab label={t('patient.advanced.tab.reminders')} />
+        <Tab label={t('patient.advanced.tab.insurance')} />
+        <Tab label={t('patient.advanced.tab.ocr')} />
+        <Tab label={t('patient.advanced.tab.reviews')} />
+        <Tab label={t('patient.advanced.tab.calendar')} />
       </Tabs>
 
       <TabPanel value={tab} index={0}>
         <Stack spacing={2} maxWidth={720}>
           <TextField
-            label="Describe symptoms"
+            label={t('patient.advanced.symptomsLabel')}
             multiline
             minRows={3}
             value={symptoms}
             onChange={(e) => setSymptoms(e.target.value)}
           />
           <Button variant="contained" disabled={busy} onClick={runTriage}>
-            Check symptoms & recommend
+            {t('patient.advanced.checkSymptoms')}
           </Button>
           {triage && (
             <Card>
               <CardContent>
                 <Typography variant="h6">
-                  Primary: {(triage.primary as { specialty: string }).specialty}
+                  {t('patient.advanced.primary', {
+                    specialty: (triage.primary as { specialty: string }).specialty,
+                  })}
                 </Typography>
                 <Typography variant="body2">{(triage.primary as { advice: string }).advice}</Typography>
                 <Typography variant="caption" display="block" sx={{ mt: 1 }}>
@@ -323,7 +328,11 @@ export default function PatientAdvanced() {
                   {String(r.full_name)} · {String(r.specialty)}
                 </Typography>
                 <Typography variant="body2">
-                  Score {String(r.score)} · ₹{String(r.consultation_fee)} · ★{String(r.rating_avg)}
+                  {t('patient.advanced.scoreLine', {
+                    score: String(r.score),
+                    fee: String(r.consultation_fee),
+                    rating: String(r.rating_avg),
+                  })}
                 </Typography>
                 <Typography variant="caption" display="block">
                   {String(r.reason)}
@@ -335,10 +344,10 @@ export default function PatientAdvanced() {
                     disabled={busy}
                     onClick={() => bookDoctor(Number(r.doctor_id), undefined, symptoms)}
                   >
-                    Book this doctor
+                    {t('patient.advanced.bookThisDoctor')}
                   </Button>
                   <Button size="small" component={RouterLink} to={`/patient/doctors/${r.doctor_id}`}>
-                    View profile
+                    {t('patient.advanced.viewProfile')}
                   </Button>
                 </Stack>
               </CardContent>
@@ -350,16 +359,18 @@ export default function PatientAdvanced() {
       <TabPanel value={tab} index={1}>
         <Stack spacing={2} maxWidth={720}>
           <TextField
-            label="Voice transcript"
+            label={t('patient.advanced.voiceTranscript')}
             multiline
             minRows={2}
             value={voice}
             onChange={(e) => setVoice(e.target.value)}
-            helperText={listeningSupported ? 'Use Speak (Chrome) or type your request' : 'Type your booking request'}
+            helperText={
+              listeningSupported ? t('patient.advanced.voiceHelperChrome') : t('patient.advanced.voiceHelperType')
+            }
           />
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button variant="outlined" onClick={startVoice} disabled={!listeningSupported || busy}>
-              Speak
+              {t('patient.advanced.speak')}
             </Button>
             <Button
               variant="contained"
@@ -367,23 +378,25 @@ export default function PatientAdvanced() {
               onClick={async () => {
                 try {
                   setVoiceResult(await advancedApi.voiceParse(voice));
-                  setMsg('Intent parsed — confirm booking when ready');
+                  setMsg(t('patient.advanced.voiceParsed'));
                 } catch (e) {
-                  setErr(errMsg(e, 'Parse failed'));
+                  setErr(errMsg(e, t('patient.advanced.parseFailed')));
                 }
               }}
             >
-              Parse booking intent
+              {t('patient.advanced.parseIntent')}
             </Button>
             <Button variant="contained" color="secondary" disabled={!voiceResult || busy} onClick={confirmVoiceBooking}>
-              Confirm & book
+              {t('patient.advanced.confirmBook')}
             </Button>
           </Stack>
           {voiceResult && (
             <Alert severity="info">
-              Specialty: {String(voiceResult.suggested_specialty)} · When:{' '}
-              {String(voiceResult.suggested_datetime || '—')} · Doctor hint:{' '}
-              {String(voiceResult.doctor_name_hint || '—')}
+              {t('patient.advanced.voiceResult', {
+                specialty: String(voiceResult.suggested_specialty),
+                when: String(voiceResult.suggested_datetime || t('common.emDash')),
+                hint: String(voiceResult.doctor_name_hint || t('common.emDash')),
+              })}
             </Alert>
           )}
         </Stack>
@@ -392,7 +405,7 @@ export default function PatientAdvanced() {
       <TabPanel value={tab} index={2}>
         <Stack spacing={2} maxWidth={720}>
           <TextField
-            label="Ask the health assistant"
+            label={t('patient.advanced.askAssistant')}
             value={assistantMsg}
             onChange={(e) => setAssistantMsg(e.target.value)}
             multiline
@@ -405,7 +418,7 @@ export default function PatientAdvanced() {
                     const r = await advancedApi.assistant(assistantMsg);
                     setAssistantReply(r.reply);
                   } catch (ex) {
-                    setErr(errMsg(ex, 'Assistant failed'));
+                    setErr(errMsg(ex, t('patient.advanced.assistantFailed')));
                   }
                 })();
               }
@@ -419,11 +432,11 @@ export default function PatientAdvanced() {
                 const r = await advancedApi.assistant(assistantMsg);
                 setAssistantReply(r.reply);
               } catch (e) {
-                setErr(errMsg(e, 'Assistant failed'));
+                setErr(errMsg(e, t('patient.advanced.assistantFailed')));
               }
             }}
           >
-            Send
+            {t('common.send')}
           </Button>
           {assistantReply && <Alert severity="success">{assistantReply}</Alert>}
         </Stack>
@@ -433,7 +446,7 @@ export default function PatientAdvanced() {
         <Stack spacing={2} maxWidth={720}>
           <TextField
             select
-            label="Doctor"
+            label={t('patient.advanced.doctor')}
             value={doctorId}
             onChange={(e) => setDoctorId(Number(e.target.value))}
             fullWidth
@@ -449,16 +462,16 @@ export default function PatientAdvanced() {
             disabled={!doctorId || busy}
             onClick={async () => {
               try {
-                const t = await advancedApi.openThread(Number(doctorId));
-                setThreadId(t.id);
-                setChatLog(await advancedApi.chatMessages(t.id));
-                setMsg(`Chat thread #${t.id} open`);
+                const thread = await advancedApi.openThread(Number(doctorId));
+                setThreadId(thread.id);
+                setChatLog(await advancedApi.chatMessages(thread.id));
+                setMsg(t('patient.advanced.chatOpen', { id: thread.id }));
               } catch (e) {
-                setErr(errMsg(e, 'Could not open chat'));
+                setErr(errMsg(e, t('patient.advanced.chatOpenFailed')));
               }
             }}
           >
-            Open chat
+            {t('patient.advanced.openChat')}
           </Button>
           {threadId && (
             <>
@@ -466,16 +479,21 @@ export default function PatientAdvanced() {
               <Box sx={{ maxHeight: 240, overflow: 'auto', bgcolor: 'background.paper', p: 1, borderRadius: 2 }}>
                 {chatLog.length === 0 && (
                   <Typography variant="body2" color="text.secondary">
-                    No messages yet — say hello.
+                    {t('patient.advanced.noMessages')}
                   </Typography>
                 )}
                 {chatLog.map((m, i) => (
                   <Typography key={m.id ?? `${m.sender_user_id}-${i}`} variant="body2" sx={{ mb: 0.5 }}>
-                    User #{m.sender_user_id}: {m.body}
+                    {t('patient.advanced.userLine', { id: m.sender_user_id, body: m.body })}
                   </Typography>
                 ))}
               </Box>
-              <TextField label="Message" value={chatBody} onChange={(e) => setChatBody(e.target.value)} fullWidth />
+              <TextField
+                label={t('patient.advanced.message')}
+                value={chatBody}
+                onChange={(e) => setChatBody(e.target.value)}
+                fullWidth
+              />
               <Button
                 variant="contained"
                 disabled={!chatBody.trim() || busy}
@@ -485,11 +503,11 @@ export default function PatientAdvanced() {
                     setChatBody('');
                     setChatLog(await advancedApi.chatMessages(threadId));
                   } catch (e) {
-                    setErr(errMsg(e, 'Send failed'));
+                    setErr(errMsg(e, t('patient.advanced.sendFailed')));
                   }
                 }}
               >
-                Send
+                {t('common.send')}
               </Button>
             </>
           )}
@@ -500,41 +518,47 @@ export default function PatientAdvanced() {
         <Stack spacing={2} maxWidth={720}>
           <TextField
             select
-            label="Appointment"
+            label={t('patient.advanced.appointment')}
             value={selectedApptId}
             onChange={(e) => setSelectedApptId(Number(e.target.value))}
             fullWidth
-            helperText={appts.length ? 'Choose an appointment for video or QR check-in' : 'No appointments — book one below'}
+            helperText={
+              appts.length ? t('patient.advanced.apptHelper') : t('patient.advanced.apptHelperEmpty')
+            }
           >
             {appts.map((a) => (
               <MenuItem key={a.id} value={a.id}>
-                #{a.id} · {a.status} · {a.doctor_name || 'Doctor'} · {a.scheduled_at?.slice(0, 16) || ''}
-                {a.consultation_mode === 'online' ? ' · online' : ''}
+                #{a.id} · {tStatus(t, a.status)} · {a.doctor_name || t('patient.advanced.doctor')} ·{' '}
+                {a.scheduled_at?.slice(0, 16) || ''}
+                {a.consultation_mode === 'online' ? t('patient.advanced.onlineSuffix') : ''}
               </MenuItem>
             ))}
           </TextField>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
             <Button variant="contained" disabled={busy || !selectedApptId} onClick={startVideo}>
-              Start / join live video
+              {t('patient.advanced.startVideo')}
             </Button>
             <Button variant="outlined" disabled={busy} onClick={bookOnlineAndJoin}>
-              Book online consult + join
+              {t('patient.advanced.bookOnlineJoin')}
             </Button>
             <Button variant="outlined" disabled={busy || !selectedApptId} onClick={showQr}>
-              Show QR check-in
+              {t('patient.advanced.showQr')}
             </Button>
-            <Button size="small" onClick={() => reloadAppts().catch(() => setErr('Refresh failed'))}>
-              Refresh appointments
+            <Button
+              size="small"
+              onClick={() => reloadAppts().catch(() => setErr(t('patient.advanced.refreshFailed')))}
+            >
+              {t('patient.advanced.refreshAppts')}
             </Button>
           </Stack>
           {videoUrl && (
             <Stack spacing={1}>
               <Button href={videoUrl} target="_blank" rel="noreferrer" variant="contained" color="secondary">
-                Open video consult (Jitsi)
+                {t('patient.advanced.openVideoJitsi')}
               </Button>
               <Box
                 component="iframe"
-                title="MediBook video consult"
+                title={t('patient.advanced.videoIframeTitle')}
                 src={videoUrl}
                 sx={{ width: '100%', height: 360, border: 0, borderRadius: 2, bgcolor: '#000' }}
                 allow="camera; microphone; fullscreen; display-capture"
@@ -543,7 +567,7 @@ export default function PatientAdvanced() {
           )}
           {selectedAppt?.meeting_url && !videoUrl && (
             <Alert severity="info">
-              Existing meeting link:{' '}
+              {t('patient.advanced.existingMeeting')}{' '}
               <a href={selectedAppt.meeting_url} target="_blank" rel="noreferrer">
                 {selectedAppt.meeting_url}
               </a>
@@ -553,14 +577,16 @@ export default function PatientAdvanced() {
             <Card>
               <CardContent>
                 <Typography variant="subtitle1" gutterBottom>
-                  Check-in QR · token {String(qrPayload.qr_token || '')}
+                  {t('patient.advanced.checkinQr', { token: String(qrPayload.qr_token || '') })}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Token #{String(qrPayload.token_number ?? '—')} · Show this at reception or to your doctor
+                  {t('patient.advanced.checkinHint', {
+                    token: String(qrPayload.token_number ?? t('common.emDash')),
+                  })}
                 </Typography>
                 <Box
                   component="img"
-                  alt="Appointment QR"
+                  alt={t('patient.advanced.appointmentQrAlt')}
                   src={qrImageUrl(String(qrPayload.checkin_payload || qrPayload.qr_token || ''))}
                   sx={{ width: 220, height: 220, display: 'block', bgcolor: '#fff', p: 1, borderRadius: 2 }}
                 />
@@ -575,8 +601,16 @@ export default function PatientAdvanced() {
 
       <TabPanel value={tab} index={5}>
         <Stack spacing={2} maxWidth={480}>
-          <TextField label="Medicine" value={medName} onChange={(e) => setMedName(e.target.value)} />
-          <TextField label="Time (HH:MM)" value={medTime} onChange={(e) => setMedTime(e.target.value)} />
+          <TextField
+            label={t('patient.advanced.medicine')}
+            value={medName}
+            onChange={(e) => setMedName(e.target.value)}
+          />
+          <TextField
+            label={t('patient.advanced.timeHhmm')}
+            value={medTime}
+            onChange={(e) => setMedTime(e.target.value)}
+          />
           <Button
             variant="contained"
             disabled={busy}
@@ -587,13 +621,13 @@ export default function PatientAdvanced() {
                   schedule_time: medTime.length === 5 ? `${medTime}:00` : medTime,
                 });
                 setReminders(await advancedApi.reminders());
-                setMsg('Reminder saved — Celery will notify at that time when worker is running');
+                setMsg(t('patient.advanced.reminderSaved'));
               } catch (e) {
-                setErr(errMsg(e, 'Reminder failed'));
+                setErr(errMsg(e, t('patient.advanced.reminderFailed')));
               }
             }}
           >
-            Add reminder
+            {t('patient.advanced.addReminder')}
           </Button>
           {reminders.map((r) => (
             <Typography key={String(r.id)} variant="body2">
@@ -612,18 +646,18 @@ export default function PatientAdvanced() {
             onClick={async () => {
               try {
                 await advancedApi.addPolicy({
-                  provider: 'Demo Health Insurance',
+                  provider: t('patient.advanced.demoProvider'),
                   policy_number: `POL-${Date.now().toString().slice(-6)}`,
                   coverage_percent: 80,
                 });
                 setPolicies(await advancedApi.policies());
-                setMsg('Policy added');
+                setMsg(t('patient.advanced.policyAdded'));
               } catch (e) {
-                setErr(errMsg(e, 'Policy failed'));
+                setErr(errMsg(e, t('patient.advanced.policyFailed')));
               }
             }}
           >
-            Add demo policy
+            {t('patient.advanced.addDemoPolicy')}
           </Button>
           {policies.map((p) => (
             <Card key={String(p.id)}>
@@ -641,13 +675,18 @@ export default function PatientAdvanced() {
                         amount: 1200,
                         appointment_id: selectedApptId ? Number(selectedApptId) : undefined,
                       });
-                      setMsg(`Claim ${c.claim_ref} · ${c.status}`);
+                      setMsg(
+                        t('patient.advanced.claimResult', {
+                          ref: c.claim_ref,
+                          status: tStatus(t, c.status),
+                        }),
+                      );
                     } catch (e) {
-                      setErr(errMsg(e, 'Claim failed'));
+                      setErr(errMsg(e, t('patient.advanced.claimFailed')));
                     }
                   }}
                 >
-                  File claim ₹1200
+                  {t('patient.advanced.fileClaim')}
                 </Button>
               </CardContent>
             </Card>
@@ -657,19 +696,20 @@ export default function PatientAdvanced() {
 
       <TabPanel value={tab} index={7}>
         <Stack spacing={2} maxWidth={640}>
-          <TextField label="Filename" value={ocrFile} onChange={(e) => setOcrFile(e.target.value)} />
           <TextField
-            label="Report text (or paste OCR output)"
+            label={t('patient.advanced.filename')}
+            value={ocrFile}
+            onChange={(e) => setOcrFile(e.target.value)}
+          />
+          <TextField
+            label={t('patient.advanced.reportText')}
             multiline
             minRows={5}
             value={ocrText}
             onChange={(e) => setOcrText(e.target.value)}
           />
-          <Button
-            variant="outlined"
-            component="label"
-          >
-            Upload text/PDF (reads as text)
+          <Button variant="outlined" component="label">
+            {t('patient.advanced.uploadFile')}
             <input
               hidden
               type="file"
@@ -681,9 +721,9 @@ export default function PatientAdvanced() {
                 try {
                   const text = await file.text();
                   if (text.trim()) setOcrText(text.slice(0, 8000));
-                  setMsg(`Loaded ${file.name}`);
+                  setMsg(t('patient.advanced.loadedFile', { name: file.name }));
                 } catch {
-                  setMsg(`Attached ${file.name} — using demo extract if binary`);
+                  setMsg(t('patient.advanced.attachedFile', { name: file.name }));
                 }
               }}
             />
@@ -695,18 +735,18 @@ export default function PatientAdvanced() {
               try {
                 const r = await advancedApi.ocrScan(ocrFile, ocrText);
                 setOcrOut(r);
-                setMsg('OCR scan complete');
+                setMsg(t('patient.advanced.ocrComplete'));
               } catch (e) {
-                setErr(errMsg(e, 'OCR failed'));
+                setErr(errMsg(e, t('patient.advanced.ocrFailed')));
               }
             }}
           >
-            Run OCR scan
+            {t('patient.advanced.runOcr')}
           </Button>
           {ocrOut && (
             <Card>
               <CardContent>
-                <Typography variant="subtitle2">Findings</Typography>
+                <Typography variant="subtitle2">{t('patient.advanced.findings')}</Typography>
                 <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13 }}>{JSON.stringify(ocrOut.findings, null, 2)}</pre>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   {String(ocrOut.extracted_text)}
@@ -721,7 +761,7 @@ export default function PatientAdvanced() {
         <Stack spacing={2} maxWidth={520}>
           <TextField
             select
-            label="Doctor"
+            label={t('patient.advanced.doctor')}
             value={doctorId}
             onChange={(e) => setDoctorId(Number(e.target.value))}
             fullWidth
@@ -733,7 +773,11 @@ export default function PatientAdvanced() {
             ))}
           </TextField>
           <Rating value={rating} onChange={(_, v) => setRating(v)} />
-          <TextField label="Comment" value={reviewComment} onChange={(e) => setReviewComment(e.target.value)} />
+          <TextField
+            label={t('patient.advanced.comment')}
+            value={reviewComment}
+            onChange={(e) => setReviewComment(e.target.value)}
+          />
           <Button
             variant="contained"
             disabled={!doctorId || !rating || busy}
@@ -745,23 +789,20 @@ export default function PatientAdvanced() {
                   comment: reviewComment,
                   appointment_id: selectedApptId ? Number(selectedApptId) : undefined,
                 });
-                setMsg('Review submitted — doctor rating updated');
+                setMsg(t('patient.advanced.reviewSubmitted'));
               } catch (e) {
-                setErr(errMsg(e, 'Review failed'));
+                setErr(errMsg(e, t('patient.advanced.reviewFailed')));
               }
             }}
           >
-            Submit rating
+            {t('patient.advanced.submitRating')}
           </Button>
         </Stack>
       </TabPanel>
 
       <TabPanel value={tab} index={9}>
         <Stack spacing={2} maxWidth={560}>
-          <Alert severity="info">
-            MediBook syncs with Google Calendar via an <strong>.ics</strong> file (no Google Cloud OAuth
-            app required). Connect, download your appointments, then import the file in Google Calendar.
-          </Alert>
+          <Alert severity="info">{t('patient.advanced.calendarInfo')}</Alert>
           <Button
             variant="contained"
             disabled={busy}
@@ -772,20 +813,19 @@ export default function PatientAdvanced() {
                 const c = await advancedApi.connectCalendar();
                 setCalendarConnected(Boolean(c.connected));
                 if (c.google_calendar_url) setGoogleCalendarUrl(String(c.google_calendar_url));
-                setCalendarStatus(
-                  c.message ||
-                    'Linked — download medibook.ics, then Import it under Google Calendar Settings',
-                );
+                setCalendarStatus(c.message || t('patient.advanced.calendarLinkedDefault'));
                 await downloadAuthed('/api/v1/advanced/calendar/export.ics', 'medibook.ics');
-                setMsg('Connected. medibook.ics downloaded — import it in Google Calendar next');
+                setMsg(t('patient.advanced.calendarConnectedMsg'));
               } catch (e) {
-                setErr(errMsg(e, 'Calendar connect failed'));
+                setErr(errMsg(e, t('patient.advanced.calendarConnectFailed')));
               } finally {
                 setBusy(false);
               }
             }}
           >
-            {calendarConnected ? 'Reconnect & download .ics' : 'Connect Google Calendar'}
+            {calendarConnected
+              ? t('patient.advanced.reconnectCalendar')
+              : t('patient.advanced.connectCalendar')}
           </Button>
           {calendarStatus && (
             <Alert severity={calendarConnected ? 'success' : 'info'} onClose={() => setCalendarStatus('')}>
@@ -799,13 +839,13 @@ export default function PatientAdvanced() {
               onClick={async () => {
                 try {
                   await downloadAuthed('/api/v1/advanced/calendar/export.ics', 'medibook.ics');
-                  setMsg('Calendar .ics downloaded');
+                  setMsg(t('patient.advanced.icsDownloaded'));
                 } catch (e) {
-                  setErr(errMsg(e, 'ICS download failed'));
+                  setErr(errMsg(e, t('patient.advanced.icsFailed')));
                 }
               }}
             >
-              Download .ics export
+              {t('patient.advanced.downloadIcs')}
             </Button>
             <Button
               variant="contained"
@@ -814,12 +854,11 @@ export default function PatientAdvanced() {
               target="_blank"
               rel="noreferrer"
             >
-              Open Google Calendar Import
+              {t('patient.advanced.openGoogleImport')}
             </Button>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            In Google Calendar: Settings → Import &amp; export → Import → choose{' '}
-            <code>medibook.ics</code> → Import.
+            {t('patient.advanced.calendarImportHint')}
           </Typography>
         </Stack>
       </TabPanel>

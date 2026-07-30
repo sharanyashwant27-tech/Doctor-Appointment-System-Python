@@ -1,10 +1,13 @@
 import { Box, Button, Stack, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import BrandLink from '@components/BrandLink';
+import LanguageSwitcher from '@components/LanguageSwitcher';
 import { useAuthContext } from '@context/AuthContext';
 import { dashboardPathForUser } from '@/utils/navigation';
 
 export default function Landing() {
+  const { t } = useTranslation();
   const { user, isAuthenticated } = useAuthContext();
   const dash = dashboardPathForUser(user);
 
@@ -30,6 +33,9 @@ export default function Landing() {
         },
       }}
     >
+      <Box sx={{ position: 'absolute', top: 16, right: 16, zIndex: 2 }}>
+        <LanguageSwitcher contrast="light" />
+      </Box>
       <Stack spacing={2} maxWidth={560} textAlign="center" sx={{ position: 'relative', zIndex: 1 }}>
         <BrandLink
           variant="h1"
@@ -40,7 +46,7 @@ export default function Landing() {
           }}
         />
         <Typography variant="h6" sx={{ opacity: 0.95, fontWeight: 400 }}>
-          Book trusted doctors, manage appointments, and keep health records in one place.
+          {t('auth.landing.tagline')}
         </Typography>
         <Stack direction="row" spacing={2} justifyContent="center" flexWrap="wrap" useFlexGap>
           {isAuthenticated ? (
@@ -55,7 +61,7 @@ export default function Landing() {
                 '&:hover': { bgcolor: '#E8FBEF', color: '#004D40' },
               }}
             >
-              Go to dashboard
+              {t('auth.landing.goDashboard')}
             </Button>
           ) : (
             <>
@@ -70,7 +76,7 @@ export default function Landing() {
                   '&:hover': { bgcolor: '#E8FBEF', color: '#004D40' },
                 }}
               >
-                Sign in
+                {t('auth.landing.signIn')}
               </Button>
               <Button
                 component={RouterLink}
@@ -84,7 +90,7 @@ export default function Landing() {
                   '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.16)' },
                 }}
               >
-                Register
+                {t('auth.landing.register')}
               </Button>
             </>
           )}

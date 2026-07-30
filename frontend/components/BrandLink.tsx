@@ -1,5 +1,6 @@
 import { Stack, Typography, TypographyProps } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuthContext } from '@context/AuthContext';
 import MediBookLogo from '@components/MediBookLogo';
 import { dashboardPathForUser } from '@/utils/navigation';
@@ -26,6 +27,7 @@ function logoSizeForVariant(variant: TypographyProps['variant'] | undefined, ove
  * Clickable MediBook brand (logo + name) — role dashboard when signed in, landing for guests.
  */
 export default function BrandLink({ suffix, variant = 'h6', sx, logoSize }: BrandLinkProps) {
+  const { t } = useTranslation();
   const { user } = useAuthContext();
   const to = dashboardPathForUser(user);
   const size = logoSizeForVariant(variant, logoSize);
@@ -37,7 +39,7 @@ export default function BrandLink({ suffix, variant = 'h6', sx, logoSize }: Bran
       direction="row"
       alignItems="center"
       spacing={1.25}
-      aria-label="MediBook home dashboard"
+      aria-label={t('brand.ariaHome')}
       sx={{
         color: 'inherit',
         textDecoration: 'none',
@@ -67,7 +69,7 @@ export default function BrandLink({ suffix, variant = 'h6', sx, logoSize }: Bran
           color: 'inherit',
         }}
       >
-        MediBook{suffix ? ` · ${suffix}` : ''}
+        {suffix ? t('brand.nameWithSuffix', { suffix }) : t('brand.name')}
       </Typography>
     </Stack>
   );

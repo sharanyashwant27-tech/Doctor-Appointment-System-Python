@@ -5,6 +5,7 @@ import App from './App';
 import { AuthProvider } from '@context/AuthContext';
 import { ThemeModeProvider } from '@context/ThemeContext';
 import { NotificationProvider } from '@context/NotificationContext';
+import './i18n';
 import './styles/global.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

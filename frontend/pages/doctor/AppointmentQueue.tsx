@@ -1,9 +1,12 @@
 import { Alert, Button, Card, CardActions, CardContent, FormControlLabel, Stack, Switch, Typography } from '@mui/material';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Appointment, appointmentsApi, recordsApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 export default function AppointmentQueue() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Appointment[]>([]);
   const [error, setError] = useState('');
   const [todayOnly, setTodayOnly] = useState(true);
@@ -12,7 +15,7 @@ export default function AppointmentQueue() {
     try {
       setItems(await appointmentsApi.list());
     } catch {
-      setError('Failed to load queue');
+      setError(t('doctor.queue.loadFailed'));
     }
   }
 
@@ -29,10 +32,10 @@ export default function AppointmentQueue() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h4">Appointment queue</Typography>
+        <Typography variant="h4">{t('doctor.queue.title')}</Typography>
         <FormControlLabel
           control={<Switch checked={todayOnly} onChange={(e) => setTodayOnly(e.target.checked)} />}
-          label="Today only"
+          label={t('doctor.queue.todayOnly')}
         />
       </Stack>
       {error && <Alert severity="error">{error}</Alert>}
@@ -40,7 +43,12 @@ export default function AppointmentQueue() {
         <Card key={a.id}>
           <CardContent>
             <Typography fontWeight={600}>
-              #{a.id} · Token {a.token_number ?? '—'} · {a.patient_name || `Patient #${a.patient_id}`} · {a.status}
+              {t('doctor.queue.cardLine', {
+                id: a.id,
+                token: a.token_number ?? t('common.emDash'),
+                patient: a.patient_name || t('doctor.queue.patientFallback', { id: a.patient_id }),
+                status: tStatus(t, a.status),
+              })}
             </Typography>
             <Typography variant="body2">{new Date(a.scheduled_at).toLocaleString()}</Typography>
             <Typography variant="body2" color="text.secondary">
@@ -51,20 +59,34 @@ export default function AppointmentQueue() {
             {a.status === 'pending' && (
               <>
                 <Button size="small" variant="contained" onClick={async () => { await appointmentsApi.approve(a.id); await load(); }}>
-                  Approve
+                  {t('doctor.queue.approve')}
                 </Button>
-                <Button size="small" color="warning" onClick={async () => { await appointmentsApi.reject(a.id, 'Unavailable'); await load(); }}>
-                  Reject
+                <Button
+                  size="small"
+                  color="warning"
+                  onClick={async () => {
+                    await appointmentsApi.reject(a.id, t('doctor.queue.rejectReason'));
+                    await load();
+                  }}
+                >
+                  {t('doctor.queue.reject')}
                 </Button>
               </>
             )}
             {['approved', 'confirmed', 'rescheduled', 'pending'].includes(a.status) && (
               <>
-                <Button size="small" color="error" onClick={async () => { await appointmentsApi.cancel(a.id, 'Doctor cancelled'); await load(); }}>
-                  Cancel
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={async () => {
+                    await appointmentsApi.cancel(a.id, t('doctor.queue.cancelReason'));
+                    await load();
+                  }}
+                >
+                  {t('doctor.queue.cancel')}
                 </Button>
                 <Button size="small" color="warning" onClick={async () => { await appointmentsApi.noShow(a.id); await load(); }}>
-                  No-show
+                  {t('doctor.queue.noShow')}
                 </Button>
               </>
             )}
@@ -72,17 +94,17 @@ export default function AppointmentQueue() {
               <Button
                 size="small"
                 onClick={async () => {
-                  await appointmentsApi.complete(a.id, 'Visit completed');
+                  await appointmentsApi.complete(a.id, t('doctor.queue.completeNote'));
                   await recordsApi.create({
                     appointment_id: a.id,
-                    diagnosis: 'Clinical assessment',
+                    diagnosis: t('doctor.queue.autoDiagnosis'),
                     symptoms: a.reason || '',
-                    notes: 'Auto-created on complete',
+                    notes: t('doctor.queue.autoNotes'),
                   });
                   await load();
                 }}
               >
-                Complete + record
+                {t('doctor.queue.completeRecord')}
               </Button>
             )}
           </CardActions>

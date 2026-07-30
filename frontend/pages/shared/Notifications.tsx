@@ -1,8 +1,10 @@
 import { Alert, Button, Card, CardActions, CardContent, Stack, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Notification, notificationsApi } from '@services/endpoints';
 
 export default function Notifications() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Notification[]>([]);
   const [error, setError] = useState('');
 
@@ -10,7 +12,7 @@ export default function Notifications() {
     try {
       setItems(await notificationsApi.list());
     } catch {
-      setError('Failed to load notifications');
+      setError(t('shared.notifications.loadFailed'));
     }
   }
 
@@ -21,14 +23,14 @@ export default function Notifications() {
   return (
     <Stack spacing={2}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h4">Notifications</Typography>
+        <Typography variant="h4">{t('shared.notifications.title')}</Typography>
         <Button
           onClick={async () => {
             await notificationsApi.readAll();
             await load();
           }}
         >
-          Mark all read
+          {t('shared.notifications.markAllRead')}
         </Button>
       </Stack>
       {error && <Alert severity="error">{error}</Alert>}
@@ -50,7 +52,7 @@ export default function Notifications() {
                   await load();
                 }}
               >
-                Mark read
+                {t('shared.notifications.markRead')}
               </Button>
             </CardActions>
           )}

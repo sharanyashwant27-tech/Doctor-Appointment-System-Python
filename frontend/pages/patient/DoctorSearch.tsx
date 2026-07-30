@@ -15,11 +15,20 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Doctor, doctorsApi } from '@services/endpoints';
 import { useDebounce } from '@hooks/useDebounce';
 import { DOCTOR_SPECIALTIES } from '@components/FindDoctorsNavMenu';
 
+function specialtyLabel(t: (k: string) => string, specialty: string) {
+  if (specialty === 'Other') return t('findDoctors.otherSpecialty');
+  const key = `specialty.${specialty}`;
+  const translated = t(key);
+  return translated === key ? specialty : translated;
+}
+
 export default function DoctorSearch() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialSpecialty = searchParams.get('specialty') || '';
   const [q, setQ] = useState('');
@@ -33,8 +42,8 @@ export default function DoctorSearch() {
     doctorsApi
       .list({ q: dq || undefined, city: city || undefined, limit: 200 } as Record<string, string | number>)
       .then(setDoctors)
-      .catch(() => setError('Failed to load doctors'));
-  }, [dq, city]);
+      .catch(() => setError(t('patient.doctors.loadFailed')));
+  }, [dq, city, t]);
 
   useEffect(() => {
     const s = searchParams.get('specialty');
@@ -74,19 +83,28 @@ export default function DoctorSearch() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Find doctors</Typography>
-      <Typography color="text.secondary">
-        Open a specialty dropdown to see doctor names, then pick one to book.
-      </Typography>
+      <Typography variant="h4">{t('patient.doctors.title')}</Typography>
+      <Typography color="text.secondary">{t('patient.doctors.subtitle')}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        <TextField label="Search name / keyword" fullWidth value={q} onChange={(e) => setQ(e.target.value)} />
-        <TextField label="City" fullWidth value={city} onChange={(e) => setCity(e.target.value)} placeholder="Mumbai, Delhi…" />
+        <TextField
+          label={t('patient.doctors.search')}
+          fullWidth
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <TextField
+          label={t('patient.doctors.city')}
+          fullWidth
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
+          placeholder={t('patient.doctors.cityPlaceholder')}
+        />
       </Stack>
 
       {filteredGrouped.length === 0 && !error && (
-        <Alert severity="info">No doctors match these filters.</Alert>
+        <Alert severity="info">{t('patient.doctors.noMatch')}</Alert>
       )}
 
       <Box>
@@ -116,10 +134,12 @@ export default function DoctorSearch() {
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Stack direction="row" spacing={1} alignItems="center" sx={{ width: '100%', pr: 1 }}>
                 <Typography fontWeight={700} sx={{ flexGrow: 1 }}>
-                  {cat}
+                  {specialtyLabel(t, cat)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {list.length} doctor{list.length === 1 ? '' : 's'}
+                  {list.length === 1
+                    ? t('patient.doctors.countOne', { count: list.length })
+                    : t('patient.doctors.countMany', { count: list.length })}
                 </Typography>
               </Stack>
             </AccordionSummary>
@@ -138,11 +158,16 @@ export default function DoctorSearch() {
                     }}
                   >
                     <ListItemText
-                      primary={d.full_name || `Doctor #${d.id}`}
-                      secondary={`${d.city || '—'} · ${d.experience_years}+ yrs · ★ ${Number(d.rating_avg || 0).toFixed(1)} · ₹${d.consultation_fee}`}
+                      primary={d.full_name || t('findDoctors.doctorFallback', { id: d.id })}
+                      secondary={t('patient.doctors.metaLine', {
+                        city: d.city || t('common.emDash'),
+                        years: d.experience_years,
+                        rating: Number(d.rating_avg || 0).toFixed(1),
+                        fee: d.consultation_fee,
+                      })}
                     />
                     <Button size="small" variant="contained" component="span">
-                      View
+                      {t('patient.doctors.view')}
                     </Button>
                   </ListItemButton>
                 ))}

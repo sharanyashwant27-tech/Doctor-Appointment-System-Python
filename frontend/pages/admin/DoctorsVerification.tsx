@@ -14,7 +14,9 @@ import {
   Typography,
 } from '@mui/material';
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Doctor, adminApi, doctorsApi, modulesApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 type Department = { id: number; name: string; is_active?: boolean };
 
@@ -32,6 +34,7 @@ const emptyForm = {
 };
 
 export default function DoctorsVerification() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Doctor[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -45,7 +48,7 @@ export default function DoctorsVerification() {
       setItems(docs);
       setDepartments((depts as Department[]).filter((d) => d.is_active !== false));
     } catch {
-      setError('Failed to load doctors or departments');
+      setError(t('admin.doctors.loadFailed'));
     }
   }
 
@@ -58,7 +61,7 @@ export default function DoctorsVerification() {
     setError('');
     setSuccess('');
     if (!form.department_id) {
-      setError('Please select a department');
+      setError(t('admin.doctors.selectDept'));
       return;
     }
     setSaving(true);
@@ -77,15 +80,18 @@ export default function DoctorsVerification() {
         is_verified: true,
       });
       setSuccess(
-        `Added ${created.full_name} to ${created.department_name || created.specialty}. They can sign in with the password you set.`,
+        t('admin.doctors.addedSuccess', {
+          name: created.full_name,
+          department: created.department_name || created.specialty,
+        }),
       );
       setForm({ ...emptyForm, department_id: form.department_id });
       await load();
     } catch (err: unknown) {
       const detail =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        'Failed to create doctor';
-      setError(typeof detail === 'string' ? detail : 'Failed to create doctor');
+        t('admin.doctors.createFailed');
+      setError(typeof detail === 'string' ? detail : t('admin.doctors.createFailed'));
     } finally {
       setSaving(false);
     }
@@ -93,17 +99,17 @@ export default function DoctorsVerification() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4">Doctors</Typography>
+      <Typography variant="h4">{t('admin.doctors.title')}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
       {success && <Alert severity="success">{success}</Alert>}
 
       <Card component="form" onSubmit={onCreate}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
-            Add doctor
+            {t('admin.doctors.addTitle')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Create a doctor account and assign them to a department from the list.
+            {t('admin.doctors.addHint')}
           </Typography>
           <Box
             sx={{
@@ -114,35 +120,35 @@ export default function DoctorsVerification() {
           >
             <TextField
               required
-              label="Full name"
+              label={t('admin.doctors.fullName')}
               value={form.full_name}
               onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
             />
             <TextField
               required
               type="email"
-              label="Email"
+              label={t('admin.doctors.email')}
               value={form.email}
               onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
             />
             <TextField
               required
               type="password"
-              label="Temporary password"
-              helperText="Minimum 8 characters"
+              label={t('admin.doctors.tempPassword')}
+              helperText={t('admin.doctors.passwordHelper')}
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
             />
             <TextField
-              label="Phone"
+              label={t('admin.doctors.phone')}
               value={form.phone}
               onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
             />
             <FormControl required fullWidth>
-              <InputLabel id="dept-label">Department</InputLabel>
+              <InputLabel id="dept-label">{t('admin.doctors.department')}</InputLabel>
               <Select
                 labelId="dept-label"
-                label="Department"
+                label={t('admin.doctors.department')}
                 value={form.department_id}
                 onChange={(e) => setForm((f) => ({ ...f, department_id: e.target.value as number }))}
               >
@@ -154,31 +160,31 @@ export default function DoctorsVerification() {
               </Select>
             </FormControl>
             <TextField
-              label="City"
+              label={t('admin.doctors.city')}
               value={form.city}
               onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))}
             />
             <TextField
-              label="Qualification"
+              label={t('admin.doctors.qualification')}
               value={form.qualification}
               onChange={(e) => setForm((f) => ({ ...f, qualification: e.target.value }))}
             />
             <TextField
               type="number"
-              label="Experience (years)"
+              label={t('admin.doctors.experience')}
               value={form.experience_years}
               onChange={(e) => setForm((f) => ({ ...f, experience_years: Number(e.target.value) }))}
               inputProps={{ min: 0 }}
             />
             <TextField
               type="number"
-              label="Consultation fee"
+              label={t('admin.doctors.fee')}
               value={form.consultation_fee}
               onChange={(e) => setForm((f) => ({ ...f, consultation_fee: Number(e.target.value) }))}
               inputProps={{ min: 0 }}
             />
             <TextField
-              label="Bio"
+              label={t('admin.doctors.bio')}
               value={form.bio}
               onChange={(e) => setForm((f) => ({ ...f, bio: e.target.value }))}
               sx={{ gridColumn: { sm: '1 / -1' } }}
@@ -189,12 +195,12 @@ export default function DoctorsVerification() {
         </CardContent>
         <CardActions sx={{ px: 2, pb: 2 }}>
           <Button type="submit" variant="contained" disabled={saving || departments.length === 0}>
-            {saving ? 'Adding…' : 'Add doctor'}
+            {saving ? t('admin.doctors.adding') : t('admin.doctors.add')}
           </Button>
         </CardActions>
       </Card>
 
-      <Typography variant="h5">Verification</Typography>
+      <Typography variant="h5">{t('admin.doctors.verification')}</Typography>
       {items.map((d) => (
         <Card key={d.id}>
           <CardContent>
@@ -202,7 +208,8 @@ export default function DoctorsVerification() {
               {d.full_name} · {d.department_name || d.specialty}
             </Typography>
             <Typography variant="body2">
-              {d.email} · {d.city || '—'} · {d.is_verified ? 'Verified' : 'Unverified'}
+              {d.email} · {d.city || t('common.emDash')} ·{' '}
+              {d.is_verified ? tStatus(t, 'verified') : tStatus(t, 'unverified')}
             </Typography>
           </CardContent>
           <CardActions>
@@ -215,7 +222,7 @@ export default function DoctorsVerification() {
                 await load();
               }}
             >
-              Verify
+              {t('admin.doctors.verify')}
             </Button>
             <Button
               size="small"
@@ -225,7 +232,7 @@ export default function DoctorsVerification() {
                 await load();
               }}
             >
-              Unverify
+              {t('admin.doctors.unverify')}
             </Button>
           </CardActions>
         </Card>

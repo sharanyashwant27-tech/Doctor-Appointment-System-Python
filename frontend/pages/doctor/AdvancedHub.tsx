@@ -12,8 +12,10 @@ import {
   Typography,
 } from '@mui/material';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { advancedApi, Appointment, appointmentsApi, recordsApi } from '@services/endpoints';
 import { downloadAuthed, openAuthedPdf, qrImageUrl } from '@services/download';
+import { tStatus } from '@/i18n';
 
 function Panel({ value, index, children }: { value: number; index: number; children: React.ReactNode }) {
   if (value !== index) return null;
@@ -26,6 +28,7 @@ function errMsg(e: unknown, fallback: string) {
 }
 
 export default function DoctorAdvanced() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState(0);
   const [threads, setThreads] = useState<Array<{ id: number; patient_id: number; doctor_id: number }>>([]);
   const [threadId, setThreadId] = useState<number | ''>('');
@@ -49,17 +52,20 @@ export default function DoctorAdvanced() {
   const [err, setErr] = useState('');
 
   const reload = useCallback(async () => {
-    const [t, a] = await Promise.all([advancedApi.chatThreads(), appointmentsApi.list()]);
-    setThreads(t);
-    setAppts(a);
-    if (a.length && !selectedApptId) {
-      setSelectedApptId(a[0].id);
-      setPatientId(String(a[0].patient_id));
+    const [threadList, appointmentList] = await Promise.all([
+      advancedApi.chatThreads(),
+      appointmentsApi.list(),
+    ]);
+    setThreads(threadList);
+    setAppts(appointmentList);
+    if (appointmentList.length && !selectedApptId) {
+      setSelectedApptId(appointmentList[0].id);
+      setPatientId(String(appointmentList[0].patient_id));
     }
   }, [selectedApptId]);
 
   useEffect(() => {
-    reload().catch(() => setErr('Failed to load doctor tools data'));
+    reload().catch(() => setErr(t('doctor.advanced.loadFailed')));
     recordsApi
       .list()
       .then((recs) => {
@@ -76,10 +82,8 @@ export default function DoctorAdvanced() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Doctor advanced tools</Typography>
-      <Typography color="text.secondary">
-        Chat, QR check-in, live video, certificates, and signed e-prescriptions.
-      </Typography>
+      <Typography variant="h4">{t('doctor.advanced.title')}</Typography>
+      <Typography color="text.secondary">{t('doctor.advanced.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -91,18 +95,18 @@ export default function DoctorAdvanced() {
         </Alert>
       )}
       <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable">
-        <Tab label="Chat" />
-        <Tab label="QR check-in" />
-        <Tab label="Video" />
-        <Tab label="Certificates" />
-        <Tab label="e-Rx + sign" />
+        <Tab label={t('doctor.advanced.tab.chat')} />
+        <Tab label={t('doctor.advanced.tab.qr')} />
+        <Tab label={t('doctor.advanced.tab.video')} />
+        <Tab label={t('doctor.advanced.tab.certificates')} />
+        <Tab label={t('doctor.advanced.tab.erx')} />
       </Tabs>
 
       <Panel value={tab} index={0}>
         <Stack spacing={2} maxWidth={640}>
           <TextField
             select
-            label="Thread"
+            label={t('doctor.advanced.thread')}
             value={threadId}
             onChange={async (e) => {
               const id = Number(e.target.value);
@@ -110,31 +114,40 @@ export default function DoctorAdvanced() {
               try {
                 setMessages(await advancedApi.chatMessages(id));
               } catch (ex) {
-                setErr(errMsg(ex, 'Could not load messages'));
+                setErr(errMsg(ex, t('doctor.advanced.loadMessagesFailed')));
               }
             }}
             fullWidth
-            helperText={threads.length ? 'Select a patient chat thread' : 'No threads yet — patients open chat first'}
+            helperText={
+              threads.length
+                ? t('doctor.advanced.threadHelper')
+                : t('doctor.advanced.threadHelperEmpty')
+            }
           >
-            {threads.map((t) => (
-              <MenuItem key={t.id} value={t.id}>
-                Thread #{t.id} · patient {t.patient_id}
+            {threads.map((th) => (
+              <MenuItem key={th.id} value={th.id}>
+                {t('doctor.advanced.threadItem', { id: th.id, patientId: th.patient_id })}
               </MenuItem>
             ))}
           </TextField>
           <Box sx={{ maxHeight: 260, overflow: 'auto', bgcolor: 'background.paper', p: 1, borderRadius: 2 }}>
             {messages.map((m, i) => (
               <Typography key={m.id ?? `${m.sender_user_id}-${i}`} variant="body2" sx={{ mb: 0.5 }}>
-                User #{m.sender_user_id}: {m.body}
+                {t('doctor.advanced.userLine', { id: m.sender_user_id, body: m.body })}
               </Typography>
             ))}
             {!messages.length && (
               <Typography variant="body2" color="text.secondary">
-                No messages in this thread.
+                {t('doctor.advanced.noMessages')}
               </Typography>
             )}
           </Box>
-          <TextField label="Reply" value={body} onChange={(e) => setBody(e.target.value)} fullWidth />
+          <TextField
+            label={t('doctor.advanced.reply')}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            fullWidth
+          />
           <Button
             variant="contained"
             disabled={!threadId || !body.trim() || busy}
@@ -143,16 +156,16 @@ export default function DoctorAdvanced() {
                 await advancedApi.postChat(Number(threadId), body);
                 setBody('');
                 setMessages(await advancedApi.chatMessages(Number(threadId)));
-                setMsg('Message sent');
+                setMsg(t('doctor.advanced.messageSent'));
               } catch (e) {
-                setErr(errMsg(e, 'Send failed'));
+                setErr(errMsg(e, t('doctor.advanced.sendFailed')));
               }
             }}
           >
-            Send
+            {t('doctor.advanced.send')}
           </Button>
           <Button size="small" onClick={() => reload().catch(() => undefined)}>
-            Refresh threads
+            {t('doctor.advanced.refreshThreads')}
           </Button>
         </Stack>
       </Panel>
@@ -161,7 +174,7 @@ export default function DoctorAdvanced() {
         <Stack spacing={2} maxWidth={560}>
           <TextField
             select
-            label="Load QR from appointment"
+            label={t('doctor.advanced.loadQrFromAppt')}
             value={selectedApptId}
             onChange={async (e) => {
               const id = Number(e.target.value);
@@ -171,30 +184,30 @@ export default function DoctorAdvanced() {
               try {
                 const qr = await appointmentsApi.qr(id);
                 setQrToken(String(qr.qr_token || ''));
-                setMsg(`Loaded QR for appointment #${id}`);
+                setMsg(t('doctor.advanced.loadedQr', { id }));
               } catch (ex) {
-                setErr(errMsg(ex, 'Could not load QR'));
+                setErr(errMsg(ex, t('doctor.advanced.loadQrFailed')));
               }
             }}
             fullWidth
           >
             {appts.map((a) => (
               <MenuItem key={a.id} value={a.id}>
-                #{a.id} · {a.patient_name || `patient ${a.patient_id}`} · {a.status}
+                #{a.id} · {a.patient_name || `patient ${a.patient_id}`} · {tStatus(t, a.status)}
               </MenuItem>
             ))}
           </TextField>
           <TextField
-            label="Scan / paste QR token"
+            label={t('doctor.advanced.scanQrToken')}
             value={qrToken}
             onChange={(e) => setQrToken(e.target.value)}
             fullWidth
-            helperText="Paste medibook check-in token from patient QR"
+            helperText={t('doctor.advanced.scanQrHelper')}
           />
           {qrToken && (
             <Box
               component="img"
-              alt="QR preview"
+              alt={t('doctor.advanced.qrPreviewAlt')}
               src={qrImageUrl(qrToken.startsWith('medibook:') ? qrToken : `medibook:checkin:${qrToken}`)}
               sx={{ width: 180, height: 180, bgcolor: '#fff', p: 1, borderRadius: 2 }}
             />
@@ -207,14 +220,14 @@ export default function DoctorAdvanced() {
                 const token = qrToken.includes(':') ? qrToken.split(':').pop() || qrToken : qrToken;
                 const r = await appointmentsApi.checkIn(token);
                 setCheckInResult(r as Record<string, unknown>);
-                setMsg('Patient checked in');
+                setMsg(t('doctor.advanced.checkedIn'));
                 await reload();
               } catch (e) {
-                setErr(errMsg(e, 'Check-in failed'));
+                setErr(errMsg(e, t('doctor.advanced.checkInFailed')));
               }
             }}
           >
-            Check in patient
+            {t('doctor.advanced.checkIn')}
           </Button>
           {checkInResult && (
             <Card>
@@ -232,7 +245,7 @@ export default function DoctorAdvanced() {
         <Stack spacing={2} maxWidth={720}>
           <TextField
             select
-            label="Appointment"
+            label={t('doctor.advanced.appointment')}
             value={selectedApptId}
             onChange={(e) => {
               const id = Number(e.target.value);
@@ -244,7 +257,7 @@ export default function DoctorAdvanced() {
           >
             {appts.map((a) => (
               <MenuItem key={a.id} value={a.id}>
-                #{a.id} · patient {a.patient_id} · {a.status}
+                #{a.id} · patient {a.patient_id} · {tStatus(t, a.status)}
                 {a.consultation_mode === 'online' ? ' · online' : ''}
               </MenuItem>
             ))}
@@ -257,22 +270,22 @@ export default function DoctorAdvanced() {
                 const room = await advancedApi.videoRoom(Number(selectedApptId));
                 setVideoUrl(room.meeting_url);
                 window.open(room.meeting_url, '_blank', 'noopener,noreferrer');
-                setMsg('Jitsi room opened');
+                setMsg(t('doctor.advanced.jitsiOpened'));
               } catch (e) {
-                setErr(errMsg(e, 'Video room failed'));
+                setErr(errMsg(e, t('doctor.advanced.videoFailed')));
               }
             }}
           >
-            Open live consult room
+            {t('doctor.advanced.openConsult')}
           </Button>
           {videoUrl && (
             <>
               <Button href={videoUrl} target="_blank" rel="noreferrer" variant="outlined">
-                Join Jitsi in new tab
+                {t('doctor.advanced.joinJitsi')}
               </Button>
               <Box
                 component="iframe"
-                title="Doctor video consult"
+                title={t('doctor.advanced.videoIframeTitle')}
                 src={videoUrl}
                 sx={{ width: '100%', height: 360, border: 0, borderRadius: 2 }}
                 allow="camera; microphone; fullscreen; display-capture"
@@ -281,7 +294,7 @@ export default function DoctorAdvanced() {
           )}
           {selectedAppt?.meeting_url && !videoUrl && (
             <Alert severity="info">
-              Saved meeting:{' '}
+              {t('doctor.advanced.savedMeeting')}{' '}
               <a href={selectedAppt.meeting_url} target="_blank" rel="noreferrer">
                 {selectedAppt.meeting_url}
               </a>
@@ -293,24 +306,33 @@ export default function DoctorAdvanced() {
       <Panel value={tab} index={3}>
         <Stack spacing={2} maxWidth={520}>
           <TextField
-            label="Patient profile id"
+            label={t('doctor.advanced.patientProfileId')}
             value={patientId}
             onChange={(e) => setPatientId(e.target.value)}
-            helperText="Filled from selected appointment when available"
+            helperText={t('doctor.advanced.patientIdHelper')}
           />
-          <TextField select label="Type" value={certType} onChange={(e) => setCertType(e.target.value)}>
-            <MenuItem value="fitness">Fitness</MenuItem>
-            <MenuItem value="sick_leave">Sick leave</MenuItem>
-            <MenuItem value="travel">Travel</MenuItem>
+          <TextField
+            select
+            label={t('doctor.advanced.certType')}
+            value={certType}
+            onChange={(e) => setCertType(e.target.value)}
+          >
+            <MenuItem value="fitness">{t('doctor.advanced.fitness')}</MenuItem>
+            <MenuItem value="sick_leave">{t('doctor.advanced.sickLeave')}</MenuItem>
+            <MenuItem value="travel">{t('doctor.advanced.travel')}</MenuItem>
           </TextField>
-          <TextField label="Diagnosis" value={diagnosis} onChange={(e) => setDiagnosis(e.target.value)} />
+          <TextField
+            label={t('doctor.advanced.diagnosis')}
+            value={diagnosis}
+            onChange={(e) => setDiagnosis(e.target.value)}
+          />
           <Button
             variant="contained"
             disabled={busy}
             onClick={async () => {
               const pid = Number(patientId || selectedAppt?.patient_id);
               if (!pid) {
-                setErr('Patient id required');
+                setErr(t('doctor.advanced.patientIdRequired'));
                 return;
               }
               try {
@@ -318,17 +340,17 @@ export default function DoctorAdvanced() {
                   patient_id: pid,
                   cert_type: certType,
                   diagnosis,
-                  remarks: 'Issued via MediBook',
+                  remarks: t('doctor.advanced.certRemarks'),
                   appointment_id: selectedApptId ? Number(selectedApptId) : undefined,
                 });
                 setCertId(c.id);
-                setMsg(`Certificate #${c.id} created`);
+                setMsg(t('doctor.advanced.certCreated', { id: c.id }));
               } catch (e) {
-                setErr(errMsg(e, 'Certificate failed'));
+                setErr(errMsg(e, t('doctor.advanced.certFailed')));
               }
             }}
           >
-            Generate certificate
+            {t('doctor.advanced.generateCert')}
           </Button>
           {certId && (
             <Stack direction="row" spacing={1}>
@@ -338,11 +360,11 @@ export default function DoctorAdvanced() {
                   try {
                     await openAuthedPdf(`/api/v1/advanced/certificates/${certId}.pdf`);
                   } catch (e) {
-                    setErr(errMsg(e, 'Could not open PDF'));
+                    setErr(errMsg(e, t('doctor.advanced.pdfOpenFailed')));
                   }
                 }}
               >
-                Open PDF
+                {t('doctor.advanced.openPdf')}
               </Button>
               <Button
                 variant="contained"
@@ -352,13 +374,13 @@ export default function DoctorAdvanced() {
                       `/api/v1/advanced/certificates/${certId}.pdf`,
                       `certificate-${certId}.pdf`,
                     );
-                    setMsg('Certificate downloaded');
+                    setMsg(t('doctor.advanced.certDownloaded'));
                   } catch (e) {
-                    setErr(errMsg(e, 'Download failed'));
+                    setErr(errMsg(e, t('doctor.advanced.downloadFailed')));
                   }
                 }}
               >
-                Download PDF
+                {t('doctor.advanced.downloadPdf')}
               </Button>
             </Stack>
           )}
@@ -368,13 +390,13 @@ export default function DoctorAdvanced() {
       <Panel value={tab} index={4}>
         <Stack spacing={2} maxWidth={560}>
           <TextField
-            label="Prescription id"
+            label={t('doctor.advanced.prescriptionId')}
             value={rxId}
             onChange={(e) => setRxId(e.target.value)}
-            helperText="From a completed visit medical record"
+            helperText={t('doctor.advanced.rxHelper')}
           />
           <TextField
-            label="Digital signature (data-url)"
+            label={t('doctor.advanced.signature')}
             value={signature}
             onChange={(e) => setSignature(e.target.value)}
             multiline
@@ -386,7 +408,7 @@ export default function DoctorAdvanced() {
             onClick={async () => {
               try {
                 const bundle = await advancedApi.erxBundle(Number(rxId), signature);
-                setMsg(`e-Prescription bundled · signed=${bundle.signed}`);
+                setMsg(t('doctor.advanced.erxBundled', { signed: bundle.signed }));
                 if (bundle.pdf_base64) {
                   const a = document.createElement('a');
                   a.href = `data:application/pdf;base64,${bundle.pdf_base64}`;
@@ -394,11 +416,11 @@ export default function DoctorAdvanced() {
                   a.click();
                 }
               } catch (e) {
-                setErr(errMsg(e, 'e-Rx failed — ensure prescription id exists'));
+                setErr(errMsg(e, t('doctor.advanced.erxFailed')));
               }
             }}
           >
-            Sign & download e-Rx PDF
+            {t('doctor.advanced.signErx')}
           </Button>
         </Stack>
       </Panel>

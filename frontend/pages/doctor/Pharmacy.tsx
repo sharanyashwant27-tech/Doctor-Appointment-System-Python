@@ -11,9 +11,12 @@ import {
   Typography,
 } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PharmacyMedicine, pharmacyApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 export default function DoctorPharmacy() {
+  const { t } = useTranslation();
   const [meds, setMeds] = useState<PharmacyMedicine[]>([]);
   const [q, setQ] = useState('');
   const [err, setErr] = useState('');
@@ -23,42 +26,40 @@ export default function DoctorPharmacy() {
   }
 
   useEffect(() => {
-    load().catch(() => setErr('Failed to load pharmacy stock'));
-  }, []);
+    load().catch(() => setErr(t('doctor.pharmacy.loadFailed')));
+  }, [t]);
 
   const low = meds.filter((m) => m.low_stock);
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">Pharmacy stock</Typography>
-      <Typography color="text.secondary">
-        Read-only view of clinic inventory to inform prescribing. Low-stock items are highlighted.
-      </Typography>
+      <Typography variant="h4">{t('doctor.pharmacy.title')}</Typography>
+      <Typography color="text.secondary">{t('doctor.pharmacy.subtitle')}</Typography>
       {err && <Alert severity="error">{err}</Alert>}
       {low.length > 0 && (
         <Alert severity="warning">
-          Low stock: {low.map((m) => m.name).join(', ')}
+          {t('doctor.pharmacy.lowStock', { names: low.map((m) => m.name).join(', ') })}
         </Alert>
       )}
       <Stack direction="row" spacing={1}>
         <TextField
           size="small"
-          label="Search medicine"
+          label={t('doctor.pharmacy.search')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') load(q).catch(() => setErr('Search failed'));
+            if (e.key === 'Enter') load(q).catch(() => setErr(t('doctor.pharmacy.searchFailed')));
           }}
         />
       </Stack>
       <Table size="small">
         <TableHead>
           <TableRow>
-            <TableCell>Name</TableCell>
-            <TableCell>Category</TableCell>
-            <TableCell>Stock</TableCell>
-            <TableCell>MRP</TableCell>
-            <TableCell>Rx?</TableCell>
+            <TableCell>{t('doctor.pharmacy.colName')}</TableCell>
+            <TableCell>{t('doctor.pharmacy.colCategory')}</TableCell>
+            <TableCell>{t('doctor.pharmacy.colStock')}</TableCell>
+            <TableCell>{t('doctor.pharmacy.colMrp')}</TableCell>
+            <TableCell>{t('doctor.pharmacy.colRx')}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -66,12 +67,14 @@ export default function DoctorPharmacy() {
             <TableRow key={m.id}>
               <TableCell>
                 {m.name}
-                {m.low_stock && <Chip size="small" color="warning" label="Low" sx={{ ml: 1 }} />}
+                {m.low_stock && (
+                  <Chip size="small" color="warning" label={tStatus(t, 'low')} sx={{ ml: 1 }} />
+                )}
               </TableCell>
-              <TableCell>{m.category || '—'}</TableCell>
+              <TableCell>{m.category || t('common.emDash')}</TableCell>
               <TableCell>{m.stock_qty}</TableCell>
               <TableCell>₹{m.mrp}</TableCell>
-              <TableCell>{m.requires_prescription ? 'Yes' : 'No'}</TableCell>
+              <TableCell>{m.requires_prescription ? t('common.yes') : t('common.no')}</TableCell>
             </TableRow>
           ))}
         </TableBody>

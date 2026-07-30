@@ -1,8 +1,10 @@
 import { Alert, Button, Stack, TextField, Typography } from '@mui/material';
 import { FormEvent, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { recordsApi } from '@services/endpoints';
 
 export default function WritePrescription() {
+  const { t } = useTranslation();
   const [recordId, setRecordId] = useState('');
   const [medicine, setMedicine] = useState('Paracetamol');
   const [dose, setDose] = useState('500mg');
@@ -21,25 +23,34 @@ export default function WritePrescription() {
         medicines: [{ name: medicine, dose, frequency, duration }],
         instructions,
       });
-      setMsg('Prescription added');
+      setMsg(t('doctor.prescribe.added'));
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || 'Failed');
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message || t('doctor.prescribe.failed'));
     }
   }
 
   return (
     <Stack spacing={2} maxWidth={480} component="form" onSubmit={onSubmit}>
-      <Typography variant="h4">Write prescription</Typography>
+      <Typography variant="h4">{t('doctor.prescribe.title')}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
       {msg && <Alert severity="success">{msg}</Alert>}
-      <TextField label="Medical record ID" value={recordId} onChange={(e) => setRecordId(e.target.value)} required />
-      <TextField label="Medicine" value={medicine} onChange={(e) => setMedicine(e.target.value)} />
-      <TextField label="Dose" value={dose} onChange={(e) => setDose(e.target.value)} />
-      <TextField label="Frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)} />
-      <TextField label="Duration" value={duration} onChange={(e) => setDuration(e.target.value)} />
-      <TextField label="Instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+      <TextField
+        label={t('doctor.prescribe.recordId')}
+        value={recordId}
+        onChange={(e) => setRecordId(e.target.value)}
+        required
+      />
+      <TextField label={t('doctor.prescribe.medicine')} value={medicine} onChange={(e) => setMedicine(e.target.value)} />
+      <TextField label={t('doctor.prescribe.dose')} value={dose} onChange={(e) => setDose(e.target.value)} />
+      <TextField label={t('doctor.prescribe.frequency')} value={frequency} onChange={(e) => setFrequency(e.target.value)} />
+      <TextField label={t('doctor.prescribe.duration')} value={duration} onChange={(e) => setDuration(e.target.value)} />
+      <TextField
+        label={t('doctor.prescribe.instructions')}
+        value={instructions}
+        onChange={(e) => setInstructions(e.target.value)}
+      />
       <Button type="submit" variant="contained">
-        Save prescription
+        {t('doctor.prescribe.save')}
       </Button>
     </Stack>
   );

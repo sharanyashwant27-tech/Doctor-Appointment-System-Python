@@ -1,6 +1,7 @@
-import { Box, Container } from '@mui/material';
+import { Box, Container, Stack } from '@mui/material';
 import { Outlet } from 'react-router-dom';
 import BrandLink from '@components/BrandLink';
+import LanguageSwitcher from '@components/LanguageSwitcher';
 
 export default function AuthLayout() {
   return (
@@ -20,6 +21,9 @@ export default function AuthLayout() {
       }}
     >
       <Container maxWidth="sm" sx={{ position: 'relative', zIndex: 1 }}>
+        <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+          <LanguageSwitcher contrast="light" />
+        </Stack>
         <Box textAlign="center" sx={{ mb: 2 }}>
           <BrandLink
             variant="h3"

@@ -11,8 +11,10 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Appointment, Payment, appointmentsApi, paymentsApi } from '@services/endpoints';
 import UpiPayDialog from '@components/UpiPayDialog';
+import { tStatus } from '@/i18n';
 
 const PAYABLE_STATUSES = new Set(['approved', 'confirmed', 'completed', 'rescheduled']);
 const UNPAID = new Set(['unpaid', 'pending', 'failed', '', undefined, null]);
@@ -28,6 +30,7 @@ function errMsg(e: unknown, fallback: string) {
 }
 
 export default function MyAppointments() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Appointment[]>([]);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -41,7 +44,7 @@ export default function MyAppointments() {
     try {
       setItems(await appointmentsApi.list());
     } catch {
-      setError('Failed to load appointments');
+      setError(t('patient.appointments.loadFailed'));
     }
   }
 
@@ -55,14 +58,14 @@ export default function MyAppointments() {
     try {
       const p = await paymentsApi.checkout(appointmentId);
       if (p.status === 'success') {
-        setMsg(`Appointment #${appointmentId} is already paid`);
+        setMsg(t('patient.appointments.alreadyPaid', { id: appointmentId }));
         await load();
         return;
       }
       setActivePayment(p);
       setPayOpen(true);
     } catch (e) {
-      setError(errMsg(e, 'Could not start UPI payment'));
+      setError(errMsg(e, t('patient.appointments.upiStartFailed')));
     } finally {
       setPayingId(null);
     }
@@ -70,8 +73,8 @@ export default function MyAppointments() {
 
   return (
     <Stack spacing={2}>
-      <Typography variant="h4">My appointments</Typography>
-      <Typography color="text.secondary">List + calendar-style schedule · Pay consultation fees via UPI</Typography>
+      <Typography variant="h4">{t('patient.appointments.title')}</Typography>
+      <Typography color="text.secondary">{t('patient.appointments.subtitle')}</Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -90,7 +93,7 @@ export default function MyAppointments() {
               <Typography variant="body2" fontWeight={600}>
                 {dayjs(a.scheduled_at).format('HH:mm')}
               </Typography>
-              <Typography variant="caption">{a.status}</Typography>
+              <Typography variant="caption">{tStatus(t, a.status)}</Typography>
             </CardContent>
           </Card>
         ))}
@@ -100,11 +103,14 @@ export default function MyAppointments() {
           <CardContent>
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
               <Typography fontWeight={600}>
-                #{a.id} · {a.doctor_name || `Doctor #${a.doctor_id}`} · {a.status}
+                #{a.id} · {a.doctor_name || t('patient.appointments.doctorFallback', { id: a.doctor_id })} ·{' '}
+                {tStatus(t, a.status)}
               </Typography>
               <Chip
                 size="small"
-                label={`Payment: ${a.payment_status || 'unpaid'}`}
+                label={t('status.paymentPrefix', {
+                  status: tStatus(t, a.payment_status || 'unpaid'),
+                })}
                 color={(a.payment_status || 'unpaid') === 'paid' ? 'success' : 'warning'}
                 variant="outlined"
               />
@@ -121,17 +127,17 @@ export default function MyAppointments() {
                   size="small"
                   onClick={async () => {
                     try {
-                      await appointmentsApi.cancel(a.id, 'Patient cancelled');
+                      await appointmentsApi.cancel(a.id, t('patient.appointments.cancelReason'));
                       await load();
                     } catch (e) {
-                      setError(errMsg(e, 'Cancel failed'));
+                      setError(errMsg(e, t('patient.appointments.cancelFailed')));
                     }
                   }}
                 >
-                  Cancel
+                  {t('patient.appointments.cancel')}
                 </Button>
                 <Button size="small" onClick={() => setRescheduleId(a.id)}>
-                  Reschedule
+                  {t('patient.appointments.reschedule')}
                 </Button>
               </>
             )}
@@ -142,11 +148,11 @@ export default function MyAppointments() {
                 disabled={payingId === a.id}
                 onClick={() => startUpiPay(a.id)}
               >
-                {payingId === a.id ? 'Opening UPI…' : 'Pay with UPI'}
+                {payingId === a.id ? t('patient.appointments.openingUpi') : t('patient.appointments.payUpi')}
               </Button>
             )}
             {(a.payment_status || '').toLowerCase() === 'paid' && (
-              <Chip size="small" color="success" label="Paid" />
+              <Chip size="small" color="success" label={tStatus(t, 'paid')} />
             )}
           </CardActions>
           {rescheduleId === a.id && (
@@ -167,11 +173,11 @@ export default function MyAppointments() {
                     setRescheduleId(null);
                     await load();
                   } catch (e) {
-                    setError(errMsg(e, 'Reschedule failed'));
+                    setError(errMsg(e, t('patient.appointments.rescheduleFailed')));
                   }
                 }}
               >
-                Save
+                {t('patient.appointments.save')}
               </Button>
             </Stack>
           )}
@@ -186,7 +192,11 @@ export default function MyAppointments() {
           setActivePayment(null);
         }}
         onPaid={async (p) => {
-          setMsg(`UPI payment successful · ${p.invoice_number || `Payment #${p.id}`}`);
+          setMsg(
+            t('patient.appointments.upiSuccess', {
+              invoice: p.invoice_number || t('patient.payments.paymentFallback', { id: p.id }),
+            }),
+          );
           await load();
         }}
       />

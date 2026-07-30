@@ -20,8 +20,10 @@ import { BarChart } from '@mui/x-charts/BarChart';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { PieChart } from '@mui/x-charts/PieChart';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link as RouterLink } from 'react-router-dom';
 import { Analytics, adminApi } from '@services/endpoints';
+import { tStatus } from '@/i18n';
 
 function StatCard({ label, value, to }: { label: string; value: string | number; to: string }) {
   return (
@@ -70,6 +72,7 @@ function SectionCard({
 }
 
 export default function AdminDashboard() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Analytics | null>(null);
   const [error, setError] = useState('');
 
@@ -77,13 +80,17 @@ export default function AdminDashboard() {
     adminApi
       .analytics()
       .then(setData)
-      .catch(() => setError('Failed to load analytics'));
-  }, []);
+      .catch(() => setError(t('admin.dashboard.loadFailed')));
+  }, [t]);
 
   const statusPie = useMemo(() => {
     if (!data) return [];
-    return Object.entries(data.appointments_by_status).map(([label, value], id) => ({ id, value, label }));
-  }, [data]);
+    return Object.entries(data.appointments_by_status).map(([label, value], id) => ({
+      id,
+      value,
+      label: tStatus(t, label),
+    }));
+  }, [data, t]);
 
   const dept = data?.department_performance?.length
     ? data.department_performance
@@ -91,64 +98,73 @@ export default function AdminDashboard() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4">Admin dashboard</Typography>
-      <Typography color="text.secondary">Click any card to open its page.</Typography>
+      <Typography variant="h4">{t('admin.dashboard.title')}</Typography>
+      <Typography color="text.secondary">{t('admin.dashboard.hint')}</Typography>
       {error && <Alert severity="error">{error}</Alert>}
       {data && (
         <>
           <Grid container spacing={2}>
             <Grid item xs={6} sm={4} md={2}>
-              <StatCard label="Total doctors" value={data.doctors_total} to="/admin/doctors" />
+              <StatCard label={t('admin.dashboard.doctors')} value={data.doctors_total} to="/admin/doctors" />
             </Grid>
             <Grid item xs={6} sm={4} md={2}>
-              <StatCard label="Total patients" value={data.patients_total} to="/admin/users" />
+              <StatCard label={t('admin.dashboard.patients')} value={data.patients_total} to="/admin/users" />
             </Grid>
             <Grid item xs={6} sm={4} md={2}>
               <StatCard
-                label="Today's appointments"
+                label={t('admin.dashboard.todayAppts')}
                 value={data.todays_appointments ?? 0}
                 to="/admin/appointments"
               />
             </Grid>
             <Grid item xs={6} sm={4} md={3}>
               <StatCard
-                label="Revenue"
+                label={t('admin.dashboard.revenue')}
                 value={`₹${Number(data.payments_total).toLocaleString()}`}
                 to="/admin/payments"
               />
             </Grid>
             <Grid item xs={6} sm={4} md={3}>
               <StatCard
-                label="Pending payments"
+                label={t('admin.dashboard.pendingPayments')}
                 value={data.pending_payments ?? 0}
                 to="/admin/payments"
               />
             </Grid>
             <Grid item xs={6} sm={4} md={2}>
-              <StatCard label="Pharmacy" value="Open" to="/admin/pharmacy" />
+              <StatCard
+                label={t('admin.dashboard.pharmacy')}
+                value={t('admin.dashboard.pharmacyOpen')}
+                to="/admin/pharmacy"
+              />
             </Grid>
           </Grid>
 
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
-              <SectionCard title="Appointment chart" to="/admin/appointments">
+              <SectionCard title={t('admin.dashboard.appointmentChart')} to="/admin/appointments">
                 {statusPie.length > 0 ? (
                   <PieChart series={[{ data: statusPie }]} height={280} />
                 ) : (
-                  <Typography color="text.secondary">No appointment data</Typography>
+                  <Typography color="text.secondary">{t('admin.dashboard.noApptData')}</Typography>
                 )}
               </SectionCard>
             </Grid>
             <Grid item xs={12} md={6}>
-              <SectionCard title="Revenue graph" to="/admin/payments">
+              <SectionCard title={t('admin.dashboard.revenueGraph')} to="/admin/payments">
                 {(data.revenue_by_month || []).length > 0 ? (
                   <LineChart
                     xAxis={[{ scaleType: 'point', data: data.revenue_by_month.map((r) => r.month) }]}
-                    series={[{ data: data.revenue_by_month.map((r) => r.revenue), label: 'Revenue' }]}
+                    series={[
+                      {
+                        data: data.revenue_by_month.map((r) => r.revenue),
+                        label: t('admin.dashboard.chartRevenue'),
+                      },
+                    ]}
                     height={280}
                   />
                 ) : (
-                  <Typography color="text.secondary">No revenue yet</Typography>
+                  <Typography color="text.secondary">{t('admin.dashboard.noRevenue')}</Typography>
                 )}
               </SectionCard>
             </Grid>
@@ -156,19 +172,21 @@ export default function AdminDashboard() {
 
           <Grid container spacing={2}>
             <Grid item xs={12} md={6}>
-              <SectionCard title="Department wise reports" to="/admin/org">
+              <SectionCard title={t('admin.dashboard.deptReports')} to="/admin/org">
                 <BarChart
                   xAxis={[{ scaleType: 'band', data: dept.map((d) => d.department) }]}
-                  series={[{ data: dept.map((d) => d.count), label: 'Appointments' }]}
+                  series={[
+                    { data: dept.map((d) => d.count), label: t('admin.dashboard.chartAppointments') },
+                  ]}
                   height={280}
                 />
               </SectionCard>
             </Grid>
             <Grid item xs={12} md={6}>
-              <SectionCard title="Recent activities" to="/admin/audit">
+              <SectionCard title={t('admin.dashboard.recentActivities')} to="/admin/audit">
                 <List dense>
                   {(data.recent_activities || []).length === 0 && (
-                    <Typography color="text.secondary">No recent activity</Typography>
+                    <Typography color="text.secondary">{t('admin.dashboard.noActivity')}</Typography>
                   )}
                   {(data.recent_activities || []).map((a) => (
                     <ListItem key={a.id} divider>
@@ -194,17 +212,17 @@ export default function AdminDashboard() {
           >
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Doctor performance
+                {t('admin.dashboard.doctorPerformance')}
               </Typography>
               <Divider sx={{ mb: 2 }} />
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Doctor</TableCell>
-                    <TableCell align="right">Completed</TableCell>
-                    <TableCell align="right">Cancelled</TableCell>
-                    <TableCell align="right">Revenue</TableCell>
-                    <TableCell align="right">Rating</TableCell>
+                    <TableCell>{t('admin.dashboard.colDoctor')}</TableCell>
+                    <TableCell align="right">{t('admin.dashboard.colCompleted')}</TableCell>
+                    <TableCell align="right">{t('admin.dashboard.colCancelled')}</TableCell>
+                    <TableCell align="right">{t('admin.dashboard.colRevenue')}</TableCell>
+                    <TableCell align="right">{t('admin.dashboard.colRating')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
