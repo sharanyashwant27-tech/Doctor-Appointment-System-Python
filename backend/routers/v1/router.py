@@ -12,6 +12,7 @@ from routers.v1 import (
     notifications,
     patients,
     payments,
+    pharmacy,
     prescriptions,
     users,
 )
@@ -29,3 +30,4 @@ api_router.include_router(prescriptions.router)
 api_router.include_router(admin.router)
 api_router.include_router(modules.router)
 api_router.include_router(advanced.router)
+api_router.include_router(pharmacy.router)

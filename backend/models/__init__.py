@@ -35,6 +35,16 @@ from models.advanced import (
     MedicineReminder,
     OcrScan,
 )
+from models.pharmacy import (
+    PharmacyMedicine,
+    PharmacyOrder,
+    PharmacyOrderItem,
+    PharmacyOrderStatus,
+    PharmacyPaymentStatus,
+    PharmacyStockMovement,
+    PharmacySupplier,
+    StockMovementType,
+)
 
 __all__ = [
     "User",
@@ -75,4 +85,12 @@ __all__ = [
     "OcrScan",
     "CalendarSyncToken",
     "HealthAssistantMessage",
+    "PharmacySupplier",
+    "PharmacyMedicine",
+    "PharmacyStockMovement",
+    "PharmacyOrder",
+    "PharmacyOrderItem",
+    "PharmacyOrderStatus",
+    "PharmacyPaymentStatus",
+    "StockMovementType",
 ]

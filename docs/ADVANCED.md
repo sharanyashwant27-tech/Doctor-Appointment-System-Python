@@ -18,6 +18,7 @@ All routes under `/api/v1/advanced/...`. UI: **Advanced** in patient/doctor nav;
 | Doctor Rating System | Patient reviews update `doctors.rating` |
 | Insurance Integration | Policies + auto-approved demo claims |
 | Google Calendar Sync | ICS export + Import in Google Calendar (no OAuth client required) |
+| Pharmacy | Inventory, suppliers, Rx dispense, walk-in POS — see [PHARMACY.md](PHARMACY.md) |
 | Digital Signature | Stored signatures on Rx / certificates |
 | Medical Certificate Generator | PDF certificates (fitness / sick leave / travel) |
 | AI Health Assistant | Conversational triage assistant (`POST /assistant/chat`) |

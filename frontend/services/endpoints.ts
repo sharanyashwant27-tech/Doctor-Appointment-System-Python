@@ -293,3 +293,92 @@ export const advancedApi = {
   erxBundle: (prescriptionId: number, signature_data?: string) =>
     apiClient.post(`/v1/advanced/eprescription/${prescriptionId}/bundle`, { signature_data }).then((r) => r.data),
 };
+
+export type PharmacyMedicine = {
+  id: number;
+  sku: string;
+  name: string;
+  generic_name?: string;
+  category?: string;
+  unit: string;
+  pack_size: number;
+  mrp: number;
+  cost_price: number;
+  stock_qty: number;
+  reorder_level: number;
+  expiry_date?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  requires_prescription: boolean;
+  is_active: boolean;
+  low_stock: boolean;
+};
+
+export type PharmacyOrder = {
+  id: number;
+  order_number: string;
+  patient_id?: number;
+  patient_name?: string;
+  prescription_id?: number;
+  status: string;
+  total_amount: number;
+  payment_status: string;
+  notes?: string;
+  created_at?: string;
+  dispensed_at?: string;
+  items: Array<{
+    id: number;
+    medicine_id: number;
+    medicine_name?: string;
+    qty: number;
+    unit_price: number;
+    line_total: number;
+  }>;
+};
+
+export type PharmacyStats = {
+  medicines_count: number;
+  low_stock_count: number;
+  pending_orders: number;
+  today_sales: number;
+  today_orders: number;
+  expiring_soon: number;
+};
+
+export const pharmacyApi = {
+  stats: () => apiClient.get<PharmacyStats>('/v1/pharmacy/stats').then((r) => r.data),
+  suppliers: () => apiClient.get('/v1/pharmacy/suppliers').then((r) => r.data),
+  createSupplier: (body: Record<string, unknown>) =>
+    apiClient.post('/v1/pharmacy/suppliers', body).then((r) => r.data),
+  medicines: (params?: { q?: string; low_stock?: boolean }) =>
+    apiClient.get<PharmacyMedicine[]>('/v1/pharmacy/medicines', { params }).then((r) => r.data),
+  createMedicine: (body: Record<string, unknown>) =>
+    apiClient.post<PharmacyMedicine>('/v1/pharmacy/medicines', body).then((r) => r.data),
+  updateMedicine: (id: number, body: Record<string, unknown>) =>
+    apiClient.patch<PharmacyMedicine>(`/v1/pharmacy/medicines/${id}`, body).then((r) => r.data),
+  purchase: (body: { medicine_id: number; qty: number; unit_cost?: number; notes?: string }) =>
+    apiClient.post<PharmacyMedicine>('/v1/pharmacy/stock/purchase', body).then((r) => r.data),
+  adjust: (body: { medicine_id: number; qty_delta: number; notes?: string }) =>
+    apiClient.post<PharmacyMedicine>('/v1/pharmacy/stock/adjust', body).then((r) => r.data),
+  orders: (status?: string) =>
+    apiClient.get<PharmacyOrder[]>('/v1/pharmacy/orders', { params: status ? { status } : {} }).then((r) => r.data),
+  matchRx: (prescriptionId: number) =>
+    apiClient.get(`/v1/pharmacy/prescriptions/${prescriptionId}/match`).then((r) => r.data),
+  dispenseFromRx: (body: {
+    prescription_id: number;
+    items: Array<{ medicine_id: number; qty: number }>;
+    mark_paid?: boolean;
+    notes?: string;
+  }) => apiClient.post<PharmacyOrder>('/v1/pharmacy/orders/from-prescription', body).then((r) => r.data),
+  walkIn: (body: {
+    items: Array<{ medicine_id: number; qty: number }>;
+    patient_id?: number;
+    customer_name?: string;
+    mark_paid?: boolean;
+    notes?: string;
+  }) => apiClient.post<PharmacyOrder>('/v1/pharmacy/orders/walk-in', body).then((r) => r.data),
+  requestOrder: (prescription_id: number, notes?: string) =>
+    apiClient.post<PharmacyOrder>('/v1/pharmacy/orders/request', { prescription_id, notes }).then((r) => r.data),
+  dispenseOrder: (orderId: number) =>
+    apiClient.post<PharmacyOrder>(`/v1/pharmacy/orders/${orderId}/dispense`).then((r) => r.data),
+};

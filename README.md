@@ -142,7 +142,8 @@ python -c "from database.seed import run_seed; run_seed(reset=True)"
 - In-app notifications; Celery reminders via SMTP / Twilio SMS / optional Firebase push
 - Admin analytics charts; Pandas CSV/XLSX + ReportLab PDF exports; audit logs
 - Advanced: symptom AI, voice booking, face login, Jitsi video, chat, OCR, medicine reminders, ratings, insurance, Google Calendar via `.ics` import, e-sign, certificates, multi-hospital
-- Brand logo + role dashboards; vibrant green MUI theme (light/dark)
+- **Pharmacy management**: inventory, suppliers, stock movements, dispense against prescriptions, walk-in POS, patient fulfillment requests ([docs/PHARMACY.md](docs/PHARMACY.md)) — Admin `/admin/pharmacy`, Doctor `/doctor/pharmacy`, Patient `/patient/pharmacy`
+- Brand logo + role dashboards with **clickable cards** to each feature page; vibrant green MUI theme (light/dark)
 
 ## Documentation
 
@@ -153,6 +154,7 @@ python -c "from database.seed import run_seed; run_seed(reset=True)"
 | Security | [docs/SECURITY.md](docs/SECURITY.md) |
 | Testing | [docs/TESTING.md](docs/TESTING.md) |
 | Advanced features | [docs/ADVANCED.md](docs/ADVANCED.md) |
+| Pharmacy | [docs/PHARMACY.md](docs/PHARMACY.md) |
 
 - Swagger UI: http://localhost:8000/docs
 - Extended routers: `/api/v1/...`

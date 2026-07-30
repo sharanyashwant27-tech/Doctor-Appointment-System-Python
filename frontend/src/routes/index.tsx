@@ -21,6 +21,7 @@ import ClinicalHistory from '@pages/patient/ClinicalHistory';
 import WaitingListPage from '@pages/patient/WaitingList';
 import Payments from '@pages/patient/Payments';
 import PatientAdvanced from '@pages/patient/AdvancedHub';
+import PatientPharmacy from '@pages/patient/Pharmacy';
 import DoctorDashboard from '@pages/doctor/Dashboard';
 import AvailabilityManager from '@pages/doctor/AvailabilityManager';
 import AppointmentQueue from '@pages/doctor/AppointmentQueue';
@@ -29,6 +30,7 @@ import PatientRecords from '@pages/doctor/PatientRecords';
 import WritePrescription from '@pages/doctor/WritePrescription';
 import Earnings from '@pages/doctor/Earnings';
 import DoctorAdvanced from '@pages/doctor/AdvancedHub';
+import DoctorPharmacy from '@pages/doctor/Pharmacy';
 import AdminDashboard from '@pages/admin/Dashboard';
 import UsersManagement from '@pages/admin/UsersManagement';
 import DoctorsVerification from '@pages/admin/DoctorsVerification';
@@ -38,6 +40,7 @@ import AuditLogs from '@pages/admin/AuditLogs';
 import ExportCenter from '@pages/admin/ExportCenter';
 import DepartmentsBranches from '@pages/admin/DepartmentsBranches';
 import HospitalsAdmin from '@pages/admin/Hospitals';
+import AdminPharmacy from '@pages/admin/Pharmacy';
 import Profile from '@pages/shared/Profile';
 import Notifications from '@pages/shared/Notifications';
 import NotFound from '@pages/shared/NotFound';
@@ -70,6 +73,7 @@ export default function AppRoutes() {
             <Route path="clinical" element={<ClinicalHistory />} />
             <Route path="waiting-list" element={<WaitingListPage />} />
             <Route path="payments" element={<Payments />} />
+            <Route path="pharmacy" element={<PatientPharmacy />} />
             <Route path="advanced" element={<PatientAdvanced />} />
           </Route>
         </Route>
@@ -82,6 +86,7 @@ export default function AppRoutes() {
             <Route path="calendar" element={<DoctorCalendar />} />
             <Route path="records" element={<PatientRecords />} />
             <Route path="prescriptions/new" element={<WritePrescription />} />
+            <Route path="pharmacy" element={<DoctorPharmacy />} />
             <Route path="earnings" element={<Earnings />} />
             <Route path="advanced" element={<DoctorAdvanced />} />
           </Route>
@@ -96,6 +101,7 @@ export default function AppRoutes() {
             <Route path="hospitals" element={<HospitalsAdmin />} />
             <Route path="appointments" element={<AppointmentsOverview />} />
             <Route path="payments" element={<PaymentsOverview />} />
+            <Route path="pharmacy" element={<AdminPharmacy />} />
             <Route path="audit" element={<AuditLogs />} />
             <Route path="export" element={<ExportCenter />} />
           </Route>

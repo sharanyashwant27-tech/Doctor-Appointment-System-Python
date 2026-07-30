@@ -25,6 +25,7 @@ from models import (  # noqa: F401 — register metadata
     UserRole,
 )
 from models.appointment import PaymentStatusOnAppointment
+from models.pharmacy import PharmacyMedicine, PharmacySupplier
 
 setup_logging()
 logger = get_logger(__name__)
@@ -198,6 +199,73 @@ def ensure_specialty_doctors(db) -> int:
     return created
 
 
+SEED_PHARMACY_MEDS = [
+    {"sku": "AML-5", "name": "Amlodipine", "generic_name": "Amlodipine", "category": "Cardiac", "mrp": 45.0, "cost_price": 28.0, "stock_qty": 200, "reorder_level": 40, "requires_prescription": True},
+    {"sku": "ASP-75", "name": "Aspirin", "generic_name": "Acetylsalicylic acid", "category": "Cardiac", "mrp": 20.0, "cost_price": 10.0, "stock_qty": 300, "reorder_level": 50, "requires_prescription": False},
+    {"sku": "PCM-500", "name": "Paracetamol", "generic_name": "Acetaminophen", "category": "Analgesic", "mrp": 15.0, "cost_price": 6.0, "stock_qty": 500, "reorder_level": 80, "requires_prescription": False},
+    {"sku": "AMOX-500", "name": "Amoxicillin", "generic_name": "Amoxicillin", "category": "Antibiotic", "mrp": 80.0, "cost_price": 45.0, "stock_qty": 120, "reorder_level": 30, "requires_prescription": True},
+    {"sku": "MET-500", "name": "Metformin", "generic_name": "Metformin", "category": "Diabetes", "mrp": 35.0, "cost_price": 18.0, "stock_qty": 180, "reorder_level": 40, "requires_prescription": True},
+    {"sku": "OMEP-20", "name": "Omeprazole", "generic_name": "Omeprazole", "category": "GI", "mrp": 55.0, "cost_price": 30.0, "stock_qty": 150, "reorder_level": 35, "requires_prescription": False},
+    {"sku": "CET-10", "name": "Cetirizine", "generic_name": "Cetirizine", "category": "Allergy", "mrp": 25.0, "cost_price": 12.0, "stock_qty": 220, "reorder_level": 40, "requires_prescription": False},
+    {"sku": "IBU-400", "name": "Ibuprofen", "generic_name": "Ibuprofen", "category": "Analgesic", "mrp": 30.0, "cost_price": 14.0, "stock_qty": 160, "reorder_level": 35, "requires_prescription": False},
+    {"sku": "ATV-10", "name": "Atorvastatin", "generic_name": "Atorvastatin", "category": "Cardiac", "mrp": 90.0, "cost_price": 50.0, "stock_qty": 100, "reorder_level": 25, "requires_prescription": True},
+    {"sku": "LOS-50", "name": "Losartan", "generic_name": "Losartan", "category": "Cardiac", "mrp": 70.0, "cost_price": 40.0, "stock_qty": 90, "reorder_level": 25, "requires_prescription": True},
+    {"sku": "VITC-500", "name": "Vitamin C", "generic_name": "Ascorbic acid", "category": "Supplement", "mrp": 40.0, "cost_price": 18.0, "stock_qty": 250, "reorder_level": 50, "requires_prescription": False},
+    {"sku": "ORS-STD", "name": "ORS Powder", "generic_name": "Oral rehydration salts", "category": "GI", "mrp": 18.0, "cost_price": 8.0, "stock_qty": 15, "reorder_level": 40, "requires_prescription": False},
+]
+
+
+def ensure_pharmacy(db) -> int:
+    """Idempotent pharmacy catalog seed. Returns medicines added."""
+    s1 = db.scalar(select(PharmacySupplier).where(PharmacySupplier.name == "MediSupply India"))
+    if not s1:
+        s1 = PharmacySupplier(
+            name="MediSupply India",
+            contact="Ravi Kumar",
+            phone="+919876543210",
+            email="orders@medisupply.local",
+            address="Andheri East, Mumbai",
+        )
+        db.add(s1)
+        db.flush()
+    s2 = db.scalar(select(PharmacySupplier).where(PharmacySupplier.name == "CarePharma Distributors"))
+    if not s2:
+        s2 = PharmacySupplier(
+            name="CarePharma Distributors",
+            contact="Anita Desai",
+            phone="+919811122233",
+            email="sales@carepharma.local",
+            address="Okhla, Delhi",
+        )
+        db.add(s2)
+        db.flush()
+
+    added = 0
+    for i, med in enumerate(SEED_PHARMACY_MEDS):
+        if db.scalar(select(PharmacyMedicine).where(PharmacyMedicine.sku == med["sku"])):
+            continue
+        db.add(
+            PharmacyMedicine(
+                sku=med["sku"],
+                name=med["name"],
+                generic_name=med["generic_name"],
+                category=med["category"],
+                unit="tablet" if med["sku"] != "ORS-STD" else "sachet",
+                pack_size=10,
+                mrp=med["mrp"],
+                cost_price=med["cost_price"],
+                stock_qty=med["stock_qty"],
+                reorder_level=med["reorder_level"],
+                expiry_date=date.today() + timedelta(days=365 + i * 30),
+                supplier_id=s1.id if i % 2 == 0 else s2.id,
+                requires_prescription=med["requires_prescription"],
+                is_active=True,
+            )
+        )
+        added += 1
+    return added
+
+
 def run_seed(*, reset: bool = False) -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
@@ -205,11 +273,13 @@ def run_seed(*, reset: bool = False) -> None:
         existing = db.scalar(select(User).where(User.email == "admin@medibook.local"))
         if existing and not reset:
             added = ensure_specialty_doctors(db)
+            ph_added = ensure_pharmacy(db)
             db.commit()
             logger.info(
-                "Core seed already present — ensured specialty doctors (added %s new). "
-                "Pass reset=True to rebuild everything.",
+                "Core seed already present — ensured specialty doctors (added %s new), "
+                "pharmacy meds (added %s). Pass reset=True to rebuild everything.",
                 added,
+                ph_added,
             )
             return
 
@@ -423,8 +493,10 @@ def run_seed(*, reset: bool = False) -> None:
             if not db.scalar(select(Permission).where(Permission.code == code)):
                 db.add(Permission(code=code, description=desc, role=role))
 
+        ph_added = ensure_pharmacy(db)
         db.commit()
         logger.info("Seed complete — %s specialty doctors across %s departments", len(SEED_DOCTORS), len(SEED_DEPARTMENTS))
+        logger.info("  Pharmacy catalog: %s medicines seeded", ph_added)
         logger.info("  admin@medibook.local / Admin@123 (admin)")
         logger.info("  All doctors / Doctor@123  (e.g. doctor1@medibook.local, medicine1@medibook.local)")
         logger.info("  patient1@medibook.local / Patient@123 (patient)")

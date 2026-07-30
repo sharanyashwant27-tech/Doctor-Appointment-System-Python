@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import dayjs from 'dayjs';
 import { useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Appointment,
   MedicalRecord,
@@ -27,9 +27,18 @@ import {
 import { useAuthContext } from '@context/AuthContext';
 import UpiPayDialog from '@components/UpiPayDialog';
 
+const linkCardSx = {
+  height: '100%',
+  textDecoration: 'none',
+  color: 'inherit',
+  cursor: 'pointer',
+  transition: 'box-shadow 0.15s, transform 0.15s',
+  '&:hover': { boxShadow: 4, transform: 'translateY(-2px)' },
+} as const;
+
 function StatCard({ label, value, to }: { label: string; value: string | number; to: string }) {
   return (
-    <Card component={RouterLink} to={to} sx={{ height: '100%', textDecoration: 'none' }}>
+    <Card component={RouterLink} to={to} sx={linkCardSx}>
       <CardContent>
         <Typography variant="h4" fontWeight={700}>
           {value}
@@ -42,6 +51,7 @@ function StatCard({ label, value, to }: { label: string; value: string | number;
 
 export default function PatientDashboard() {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [records, setRecords] = useState<MedicalRecord[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -83,14 +93,21 @@ export default function PatientDashboard() {
   const pastVisits = useMemo(
     () =>
       appointments
-        .filter((a) => ['completed', 'cancelled', 'no_show', 'rejected'].includes(a.status) || dayjs(a.scheduled_at).isBefore(dayjs()))
+        .filter(
+          (a) =>
+            ['completed', 'cancelled', 'no_show', 'rejected'].includes(a.status) ||
+            dayjs(a.scheduled_at).isBefore(dayjs()),
+        )
         .sort((a, b) => +new Date(b.scheduled_at) - +new Date(a.scheduled_at))
         .slice(0, 6),
     [appointments],
   );
 
   const prescriptions = useMemo(
-    () => records.flatMap((r) => (r.prescriptions || []).map((p) => ({ ...p, doctor_name: r.doctor_name, record_id: r.id }))),
+    () =>
+      records.flatMap((r) =>
+        (r.prescriptions || []).map((p) => ({ ...p, doctor_name: r.doctor_name, record_id: r.id })),
+      ),
     [records],
   );
 
@@ -99,7 +116,9 @@ export default function PatientDashboard() {
   return (
     <Stack spacing={3}>
       <Typography variant="h4">Patient dashboard</Typography>
-      <Typography color="text.secondary">Welcome, {user?.full_name || 'Patient'}</Typography>
+      <Typography color="text.secondary">
+        Welcome, {user?.full_name || 'Patient'} · Click any card to open its page
+      </Typography>
       {msg && (
         <Alert severity="success" onClose={() => setMsg('')}>
           {msg}
@@ -117,22 +136,27 @@ export default function PatientDashboard() {
         <Grid item xs={6} sm={4} md={2}>
           <StatCard label="Medical records" value={records.length} to="/patient/records" />
         </Grid>
-        <Grid item xs={6} sm={4} md={3}>
+        <Grid item xs={6} sm={4} md={2}>
           <StatCard label="Payments" value={payments.length} to="/patient/payments" />
         </Grid>
-        <Grid item xs={6} sm={4} md={3}>
-          <StatCard label="Prescriptions" value={prescriptions.length} to="/patient/records" />
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard label="Prescriptions" value={prescriptions.length} to="/patient/pharmacy" />
+        </Grid>
+        <Grid item xs={6} sm={4} md={2}>
+          <StatCard label="Find doctors" value="Book" to="/patient/doctors" />
         </Grid>
       </Grid>
 
       <Grid container spacing={2}>
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={linkCardSx} onClick={() => navigate('/patient/appointments')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Upcoming appointment
               </Typography>
-              {upcoming.length === 0 && <Typography color="text.secondary">No upcoming visits. Book a doctor.</Typography>}
+              {upcoming.length === 0 && (
+                <Typography color="text.secondary">No upcoming visits. Book a doctor.</Typography>
+              )}
               {upcoming.slice(0, 1).map((a) => (
                 <Stack key={a.id} spacing={1}>
                   <Typography fontWeight={700}>
@@ -149,7 +173,14 @@ export default function PatientDashboard() {
                     />
                   </Stack>
                   {a.meeting_url && (
-                    <Typography variant="body2" component="a" href={a.meeting_url} target="_blank" rel="noreferrer">
+                    <Typography
+                      variant="body2"
+                      component="a"
+                      href={a.meeting_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       Join online consult
                     </Typography>
                   )}
@@ -159,7 +190,8 @@ export default function PatientDashboard() {
                         size="small"
                         variant="contained"
                         sx={{ alignSelf: 'flex-start' }}
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           try {
                             const p = await paymentsApi.checkout(a.id);
                             if (p.status === 'success') {
@@ -169,8 +201,8 @@ export default function PatientDashboard() {
                             }
                             setActivePayment(p);
                             setPayOpen(true);
-                          } catch (e) {
-                            const ax = e as { response?: { data?: { message?: string } } };
+                          } catch (err) {
+                            const ax = err as { response?: { data?: { message?: string } } };
                             setError(ax.response?.data?.message || 'Could not start UPI payment');
                           }
                         }}
@@ -188,14 +220,26 @@ export default function PatientDashboard() {
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 2 }}>
+          <Card
+            sx={{ ...linkCardSx, mt: 2 }}
+            onClick={() => navigate('/patient/appointments')}
+          >
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Past visits
               </Typography>
-              {pastVisits.length === 0 && <Typography color="text.secondary">No past visits yet.</Typography>}
+              {pastVisits.length === 0 && (
+                <Typography color="text.secondary">No past visits yet.</Typography>
+              )}
               {pastVisits.map((a) => (
-                <Stack key={a.id} direction="row" justifyContent="space-between" sx={{ py: 1 }} borderBottom={1} borderColor="divider">
+                <Stack
+                  key={a.id}
+                  direction="row"
+                  justifyContent="space-between"
+                  sx={{ py: 1 }}
+                  borderBottom={1}
+                  borderColor="divider"
+                >
                   <Typography variant="body2">
                     {a.doctor_name || `Doctor #${a.doctor_id}`} · {dayjs(a.scheduled_at).format('D MMM YYYY')}
                   </Typography>
@@ -207,7 +251,7 @@ export default function PatientDashboard() {
         </Grid>
 
         <Grid item xs={12} md={6}>
-          <Card>
+          <Card sx={linkCardSx} onClick={() => navigate('/patient/records')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Medical records & prescriptions
@@ -223,29 +267,41 @@ export default function PatientDashboard() {
                   </Typography>
                 </Stack>
               ))}
-              <Typography component={RouterLink} to="/patient/records" variant="body2" color="primary" sx={{ mt: 1, display: 'inline-block' }}>
-                View all records
+              <Typography variant="body2" color="primary" sx={{ mt: 1, display: 'inline-block' }}>
+                View all records →
               </Typography>
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 2 }}>
+          <Card sx={{ ...linkCardSx, mt: 2 }} onClick={() => navigate('/patient/payments')}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
                 Payments
               </Typography>
               {payments.length === 0 && <Typography color="text.secondary">No payments yet.</Typography>}
               {payments.slice(0, 4).map((p) => (
-                <Stack key={p.id} direction="row" justifyContent="space-between" alignItems="center" sx={{ py: 1 }} gap={1}>
+                <Stack
+                  key={p.id}
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ py: 1 }}
+                  gap={1}
+                >
                   <Typography variant="body2">
                     ₹{p.amount} · {p.invoice_number || `Pay #${p.id}`}
                   </Typography>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <Chip size="small" label={p.status} color={p.status === 'success' ? 'success' : 'warning'} />
+                    <Chip
+                      size="small"
+                      label={p.status}
+                      color={p.status === 'success' ? 'success' : 'warning'}
+                    />
                     {p.status === 'pending' && (
                       <Button
                         size="small"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setActivePayment(p);
                           setPayOpen(true);
                         }}
@@ -256,13 +312,13 @@ export default function PatientDashboard() {
                   </Stack>
                 </Stack>
               ))}
-              <Typography component={RouterLink} to="/patient/payments" variant="body2" color="primary">
-                Payment history
+              <Typography variant="body2" color="primary">
+                Payment history →
               </Typography>
             </CardContent>
           </Card>
 
-          <Card sx={{ mt: 2 }}>
+          <Card sx={{ ...linkCardSx, mt: 2 }} onClick={() => navigate('/notifications')}>
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="center">
                 <Typography variant="h6">Notifications</Typography>
@@ -279,9 +335,24 @@ export default function PatientDashboard() {
                   </ListItem>
                 ))}
               </List>
-              {notifications.length === 0 && <Typography color="text.secondary">No notifications.</Typography>}
-              <Typography component={RouterLink} to="/notifications" variant="body2" color="primary">
-                Open inbox
+              {notifications.length === 0 && (
+                <Typography color="text.secondary">No notifications.</Typography>
+              )}
+              <Typography variant="body2" color="primary">
+                Open inbox →
+              </Typography>
+            </CardContent>
+          </Card>
+
+          <Card
+            component={RouterLink}
+            to="/patient/advanced"
+            sx={{ ...linkCardSx, display: 'block', mt: 2 }}
+          >
+            <CardContent>
+              <Typography variant="h6">Advanced care tools</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Video, chat, OCR, reminders, calendar
               </Typography>
             </CardContent>
           </Card>

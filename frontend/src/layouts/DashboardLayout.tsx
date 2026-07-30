@@ -25,6 +25,7 @@ const NAV: Record<string, NavItem[]> = {
     { to: '/patient/clinical', label: 'Clinical' },
     { to: '/patient/waiting-list', label: 'Waitlist' },
     { to: '/patient/payments', label: 'Payments' },
+    { to: '/patient/pharmacy', label: 'Pharmacy' },
     { to: '/patient/advanced', label: 'Advanced' },
   ],
   doctor: [
@@ -34,6 +35,7 @@ const NAV: Record<string, NavItem[]> = {
     { to: '/doctor/calendar', label: 'Calendar' },
     { to: '/doctor/records', label: 'Records' },
     { to: '/doctor/prescriptions/new', label: 'Prescribe' },
+    { to: '/doctor/pharmacy', label: 'Pharmacy' },
     { to: '/doctor/earnings', label: 'Earnings' },
     { to: '/doctor/advanced', label: 'Advanced' },
   ],
@@ -45,6 +47,7 @@ const NAV: Record<string, NavItem[]> = {
     { to: '/admin/hospitals', label: 'Hospitals' },
     { to: '/admin/appointments', label: 'Appointments' },
     { to: '/admin/payments', label: 'Payments' },
+    { to: '/admin/pharmacy', label: 'Pharmacy' },
     { to: '/admin/audit', label: 'Audit' },
     { to: '/admin/export', label: 'Export' },
   ],
